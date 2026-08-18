@@ -7,11 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  Appointment,
-  AppointmentStatus as PrismaAppointmentStatus,
-  Prisma,
-} from '@prisma/client';
+import { Appointment, Prisma } from '@prisma/client';
 import type { AuthUser } from '../auth/auth-user';
 import { AuditService } from '../audit/audit.service';
 import { AvailabilityService } from '../availability/availability.service';
@@ -245,7 +241,7 @@ export class AppointmentsService {
     const before = this.snapshot(current);
     const updated = await this.prisma.appointment.update({
       where: { id: current.id },
-      data: { status: next as PrismaAppointmentStatus },
+      data: { status: next },
     });
     await this.auditService.record({
       actorId: actor.id,

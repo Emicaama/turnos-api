@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Role as PrismaRole, User } from '@prisma/client';
+import { User } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { isUniqueConstraintError } from '../prisma/prisma.errors';
@@ -23,7 +23,7 @@ export class UsersService {
           email: dto.email.toLowerCase(),
           passwordHash,
           name: dto.name,
-          role: dto.role as PrismaRole,
+          role: dto.role,
           professionalId: dto.professionalId,
         },
         ...publicUser,
