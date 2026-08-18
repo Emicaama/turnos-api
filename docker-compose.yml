@@ -1,0 +1,32 @@
+services:
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: turnos
+      MONGO_INITDB_ROOT_PASSWORD: turnos_secret
+      MONGO_INITDB_DATABASE: turnos
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mongosh",
+          "--username",
+          "turnos",
+          "--password",
+          "turnos_secret",
+          "--authenticationDatabase",
+          "admin",
+          "--eval",
+          "db.adminCommand('ping')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  mongo_data:

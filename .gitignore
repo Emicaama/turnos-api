@@ -1,0 +1,31 @@
+# compiled output
+/dist
+/node_modules
+/build
+
+# logs
+logs
+*.log
+npm-debug.log*
+
+# tests
+/coverage
+/.nyc_output
+
+# env
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+
+# docker
+mongo_data/
+
+# misc
+*.swp
+*.swo

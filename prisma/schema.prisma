@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  admin
+  secretaria
+  profesional
+}
+
+enum AppointmentStatus {
+  pendiente
+  confirmado
+  completado
+  ausente
+  cancelado
+}
+
+model User {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  email          String   @unique
+  passwordHash   String
+  name           String
+  role           Role
+  professionalId String?  @db.ObjectId
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Branch {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  address   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Specialty {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Patient {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  firstName  String
+  lastName   String
+  documentId String   @unique
+  email      String?
+  phone      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Professional {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  firstName    String
+  lastName     String
+  userId       String?  @db.ObjectId
+  specialtyIds String[] @db.ObjectId
+  branchIds    String[] @db.ObjectId
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Availability {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  professionalId String   @db.ObjectId
+  branchId       String   @db.ObjectId
+  weekday        Int
+  startTime      String
+  endTime        String
+  slotMinutes    Int      @default(30)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([professionalId, branchId, weekday, startTime])
+  @@index([professionalId, branchId, weekday])
+}
+
+model Appointment {
+  id             String            @id @default(auto()) @map("_id") @db.ObjectId
+  patientId      String            @db.ObjectId
+  professionalId String            @db.ObjectId
+  branchId       String            @db.ObjectId
+  startAt        DateTime
+  endAt          DateTime
+  status         AppointmentStatus @default(pendiente)
+  notes          String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([professionalId, branchId, startAt, endAt, status])
+}
+
+model AuditLog {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  actorId   String   @db.ObjectId
+  action    String
+  entity    String
+  entityId  String   @db.ObjectId
+  before    Json?
+  after     Json?
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+}
