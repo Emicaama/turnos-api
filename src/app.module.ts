@@ -9,12 +9,10 @@ import { BranchesModule } from './branches/branches.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { validateEnv } from './config/env.validation';
-import { HealthModule } from './health/health.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PatientsModule } from './patients/patients.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProfessionalsModule } from './professionals/professionals.module';
-import { SeedModule } from './seed/seed.module';
 import { SpecialtiesModule } from './specialties/specialties.module';
 import { UsersModule } from './users/users.module';
 
@@ -27,7 +25,6 @@ import { UsersModule } from './users/users.module';
     PrismaModule,
     UsersModule,
     AuthModule,
-    HealthModule,
     BranchesModule,
     SpecialtiesModule,
     PatientsModule,
@@ -36,7 +33,6 @@ import { UsersModule } from './users/users.module';
     AuditModule,
     NotificationsModule,
     AppointmentsModule,
-    SeedModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
