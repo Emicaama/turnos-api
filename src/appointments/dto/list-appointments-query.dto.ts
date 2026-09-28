@@ -1,4 +1,4 @@
-import { IsDateString, IsEnum, IsMongoId, IsOptional } from 'class-validator';
+import { IsDateString, IsEnum, IsOptional, IsUUID } from 'class-validator';
 import { AppointmentStatus } from '../../common/enums/appointment-status.enum';
 
 export class ListAppointmentsQueryDto {
@@ -7,11 +7,11 @@ export class ListAppointmentsQueryDto {
   status?: AppointmentStatus;
 
   @IsOptional()
-  @IsMongoId()
+  @IsUUID()
   professionalId?: string;
 
   @IsOptional()
-  @IsMongoId()
+  @IsUUID()
   branchId?: string;
 
   @IsOptional()

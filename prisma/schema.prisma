@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mongodb"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -22,18 +22,18 @@ enum AppointmentStatus {
 }
 
 model User {
-  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  id             String   @id @default(uuid())
   email          String   @unique
   passwordHash   String
   name           String
   role           Role
-  professionalId String?  @db.ObjectId
+  professionalId String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }
 
 model Branch {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  id        String   @id @default(uuid())
   name      String
   address   String
   createdAt DateTime @default(now())
@@ -41,14 +41,14 @@ model Branch {
 }
 
 model Specialty {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  id        String   @id @default(uuid())
   name      String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Patient {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  id         String   @id @default(uuid())
   firstName  String
   lastName   String
   documentId String   @unique
@@ -59,20 +59,20 @@ model Patient {
 }
 
 model Professional {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  id           String   @id @default(uuid())
   firstName    String
   lastName     String
-  userId       String?  @db.ObjectId
-  specialtyIds String[] @db.ObjectId
-  branchIds    String[] @db.ObjectId
+  userId       String?
+  specialtyIds String[]
+  branchIds    String[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
 
 model Availability {
-  id             String   @id @default(auto()) @map("_id") @db.ObjectId
-  professionalId String   @db.ObjectId
-  branchId       String   @db.ObjectId
+  id             String   @id @default(uuid())
+  professionalId String
+  branchId       String
   weekday        Int
   startTime      String
   endTime        String
@@ -85,10 +85,10 @@ model Availability {
 }
 
 model Appointment {
-  id             String            @id @default(auto()) @map("_id") @db.ObjectId
-  patientId      String            @db.ObjectId
-  professionalId String            @db.ObjectId
-  branchId       String            @db.ObjectId
+  id             String            @id @default(uuid())
+  patientId      String
+  professionalId String
+  branchId       String
   startAt        DateTime
   endAt          DateTime
   status         AppointmentStatus @default(pendiente)
@@ -99,15 +99,12 @@ model Appointment {
   @@index([professionalId, branchId, startAt, endAt, status])
 }
 
-model AuditLog {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  actorId   String   @db.ObjectId
-  action    String
-  entity    String
-  entityId  String   @db.ObjectId
-  before    Json?
-  after     Json?
-  createdAt DateTime @default(now())
+model BinnacleRecord {
+  id            String   @id @default(uuid())
+  appointmentId String
+  authorName    String
+  text          String
+  createdAt     DateTime @default(now())
 
-  @@index([entity, entityId])
+  @@index([appointmentId, createdAt])
 }

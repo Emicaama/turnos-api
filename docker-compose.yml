@@ -1,32 +1,49 @@
 services:
-  mongo:
-    image: mongo:7
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
     ports:
-      - "27017:27017"
+      - "5433:5432"
     environment:
-      MONGO_INITDB_ROOT_USERNAME: turnos
-      MONGO_INITDB_ROOT_PASSWORD: turnos_secret
-      MONGO_INITDB_DATABASE: turnos
+      POSTGRES_USER: turnos
+      POSTGRES_PASSWORD: turnos_secret
+      POSTGRES_DB: turnos
     volumes:
-      - mongo_data:/data/db
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U turnos -d turnos"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  api:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://turnos:turnos_secret@postgres:5432/turnos?schema=public
+      JWT_SECRET: change-me-use-at-least-16-chars
+      JWT_EXPIRES_IN: 8h
+      CLINIC_TZ: America/Argentina/Buenos_Aires
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test:
         [
           "CMD",
-          "mongosh",
-          "--username",
-          "turnos",
-          "--password",
-          "turnos_secret",
-          "--authenticationDatabase",
-          "admin",
-          "--eval",
-          "db.adminCommand('ping')",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/v1/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
         ]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 40s
 
 volumes:
-  mongo_data:
+  postgres_data:

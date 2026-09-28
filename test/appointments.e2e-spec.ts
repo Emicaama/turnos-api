@@ -12,7 +12,7 @@ type AppointmentBody = {
   status: string;
   professionalId: string;
 };
-type AuditEntry = { action: string };
+type BinnacleEntry = { text: string; authorName: string };
 
 describe('Turnos (e2e)', () => {
   let app: INestApplication<App>;
@@ -36,7 +36,9 @@ describe('Turnos (e2e)', () => {
     setupApp(app);
     await app.init();
 
-    const seeded = await app.get(SeedService).run();
+    const seed = app.get(SeedService);
+    await seed.reset();
+    const seeded = await seed.run();
     if (seeded.skipped) {
       throw new Error('El seed no debería saltarse en e2e');
     }
@@ -52,7 +54,7 @@ describe('Turnos (e2e)', () => {
 
     const profesionalLogin = await request(app.getHttpServer())
       .post('/api/v1/auth/login')
-      .send(SEED_ACCOUNTS.profesional)
+      .send(SEED_ACCOUNTS.medicos.ana)
       .expect(201);
     profesionalToken = (profesionalLogin.body as LoginBody).accessToken;
   });
@@ -63,12 +65,12 @@ describe('Turnos (e2e)', () => {
     }
   });
 
-  it('GET /api/v1/health pinea Mongo', async () => {
+  it('GET /api/v1/health pinea Postgres', async () => {
     await request(app.getHttpServer())
       .get('/api/v1/health')
       .expect(200)
       .expect((res) => {
-        expect(res.body).toEqual({ status: 'ok', mongo: true });
+        expect(res.body).toEqual({ status: 'ok', postgres: true });
       });
   });
 
@@ -117,7 +119,7 @@ describe('Turnos (e2e)', () => {
       .expect(403);
   });
 
-  it('cancelar deja rastro en auditoría', async () => {
+  it('cancelar deja una nota en la bitácora', async () => {
     const created = await request(app.getHttpServer())
       .post('/api/v1/appointments')
       .set('Authorization', `Bearer ${secretariaToken}`)
@@ -137,13 +139,16 @@ describe('Turnos (e2e)', () => {
       .set('Authorization', `Bearer ${secretariaToken}`)
       .expect(201);
 
-    const audit = await request(app.getHttpServer())
-      .get(`/api/v1/audit/appointments/${id}`)
+    const binnacle = await request(app.getHttpServer())
+      .get(`/api/v1/binnacle/${id}`)
       .set('Authorization', `Bearer ${secretariaToken}`)
       .expect(200);
 
-    const entries = audit.body as AuditEntry[];
-    expect(entries.some((entry) => entry.action === 'cancel')).toBe(true);
+    const entries = binnacle.body as BinnacleEntry[];
+    expect(entries.map((entry) => entry.text)).toEqual([
+      'Creó el turno',
+      'Canceló el turno',
+    ]);
   });
 
   it('lista la agenda del profesional', async () => {

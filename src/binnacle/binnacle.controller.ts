@@ -3,18 +3,18 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { RolesGuard } from '../common/guards/roles.guard';
-import { AuditService } from './audit.service';
+import { BinnacleService } from './binnacle.service';
 
-@ApiTags('audit')
+@ApiTags('binnacle')
 @ApiBearerAuth()
 @UseGuards(RolesGuard)
 @Roles(Role.Admin, Role.Secretaria)
-@Controller('audit')
-export class AuditController {
-  constructor(private readonly auditService: AuditService) {}
+@Controller('binnacle')
+export class BinnacleController {
+  constructor(private readonly binnacle: BinnacleService) {}
 
-  @Get('appointments/:id')
-  listAppointment(@Param('id') id: string) {
-    return this.auditService.listByEntity('appointment', id);
+  @Get(':appointmentId')
+  list(@Param('appointmentId') appointmentId: string) {
+    return this.binnacle.list(appointmentId);
   }
 }

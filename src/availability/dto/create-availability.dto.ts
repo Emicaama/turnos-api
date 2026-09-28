@@ -1,11 +1,11 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsMongoId, IsString, Matches, Max, Min } from 'class-validator';
+import { IsInt, IsString, IsUUID, Matches, Max, Min } from 'class-validator';
 
 export class CreateAvailabilityDto {
-  @IsMongoId()
+  @IsUUID()
   professionalId: string;
 
-  @IsMongoId()
+  @IsUUID()
   branchId: string;
 
   @Type(() => Number)

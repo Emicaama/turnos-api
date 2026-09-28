@@ -1,7 +1,7 @@
 import {
   IsEmail,
   IsEnum,
-  IsMongoId,
+  IsUUID,
   IsOptional,
   IsString,
   MinLength,
@@ -23,6 +23,6 @@ export class CreateUserDto {
   role: Role;
 
   @IsOptional()
-  @IsMongoId()
+  @IsUUID()
   professionalId?: string;
 }

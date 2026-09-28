@@ -1,13 +1,13 @@
-import { IsDateString, IsMongoId, IsOptional, IsString } from 'class-validator';
+import { IsDateString, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class CreateAppointmentDto {
-  @IsMongoId()
+  @IsUUID()
   patientId: string;
 
-  @IsMongoId()
+  @IsUUID()
   professionalId: string;
 
-  @IsMongoId()
+  @IsUUID()
   branchId: string;
 
   @IsDateString()

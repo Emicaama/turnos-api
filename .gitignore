@@ -25,6 +25,10 @@ npm-debug.log*
 
 # docker
 mongo_data/
+postgres_data/
+
+# e2e
+/test/.e2e-database-url
 
 # misc
 *.swp

@@ -9,7 +9,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Appointment, Prisma } from '@prisma/client';
 import type { AuthUser } from '../auth/auth-user';
-import { AuditService } from '../audit/audit.service';
+import { BinnacleService } from '../binnacle/binnacle.service';
 import { AvailabilityService } from '../availability/availability.service';
 import { BranchesService } from '../branches/branches.service';
 import {
@@ -35,13 +35,13 @@ export class AppointmentsService {
     private readonly professionalsService: ProfessionalsService,
     private readonly branchesService: BranchesService,
     private readonly availabilityService: AvailabilityService,
-    private readonly auditService: AuditService,
+    private readonly binnacle: BinnacleService,
     @Inject(NOTIFICATION_PORT)
     private readonly notifications: NotificationPort,
     private readonly config: ConfigService,
   ) {}
 
-  async create(dto: CreateAppointmentDto, actor: AuthUser) {
+  async create(dto: CreateAppointmentDto, actor: AuthUser, text = 'Creó el turno') {
     this.assertCanCreate(actor);
     const { startAt, endAt } = this.parseRange(dto.startAt, dto.endAt);
     await this.assertCatalog(dto.patientId, dto.professionalId, dto.branchId);
@@ -70,13 +70,7 @@ export class AppointmentsService {
       },
     });
 
-    await this.auditService.record({
-      actorId: actor.id,
-      action: 'create',
-      entity: 'appointment',
-      entityId: appointment.id,
-      after: this.snapshot(appointment),
-    });
+    await this.binnacle.add(appointment.id, actor.name, text);
     await this.notifications.notify({
       type: 'created',
       appointmentId: appointment.id,
@@ -194,6 +188,7 @@ export class AppointmentsService {
       current,
       AppointmentStatus.Cancelado,
       actor,
+      'Reprogramó el turno',
     );
     const created = await this.create(
       {
@@ -205,6 +200,7 @@ export class AppointmentsService {
         notes: dto.notes ?? current.notes ?? undefined,
       },
       actor,
+      'Creó el turno reprogramado',
     );
     await this.notifications.notify({
       type: 'rescheduled',
@@ -220,6 +216,7 @@ export class AppointmentsService {
     current: Appointment,
     next: AppointmentStatus,
     actor: AuthUser,
+    text?: string,
   ) {
     if (actor.role === Role.Profesional) {
       const allowed = [
@@ -238,19 +235,18 @@ export class AppointmentsService {
         `No se puede pasar de ${current.status} a ${next}`,
       );
     }
-    const before = this.snapshot(current);
     const updated = await this.prisma.appointment.update({
       where: { id: current.id },
       data: { status: next },
     });
-    await this.auditService.record({
-      actorId: actor.id,
-      action: next === AppointmentStatus.Cancelado ? 'cancel' : 'status_change',
-      entity: 'appointment',
-      entityId: updated.id,
-      before,
-      after: this.snapshot(updated),
-    });
+    await this.binnacle.add(
+      updated.id,
+      actor.name,
+      text ??
+        (next === AppointmentStatus.Cancelado
+          ? 'Canceló el turno'
+          : `Cambió el estado a ${next}`),
+    );
     await this.notifications.notify({
       type:
         next === AppointmentStatus.Cancelado ? 'cancelled' : 'status_changed',
@@ -349,15 +345,4 @@ export class AppointmentsService {
     }
   }
 
-  private snapshot(appointment: Appointment): Record<string, unknown> {
-    return {
-      patientId: appointment.patientId,
-      professionalId: appointment.professionalId,
-      branchId: appointment.branchId,
-      startAt: appointment.startAt.toISOString(),
-      endAt: appointment.endAt.toISOString(),
-      status: appointment.status,
-      notes: appointment.notes,
-    };
-  }
 }

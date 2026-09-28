@@ -11,8 +11,7 @@ function asString(value: unknown, fallback = ''): string {
 }
 
 export function validateEnv(config: Record<string, unknown>): AppEnv {
-  const databaseUrl =
-    asString(config.DATABASE_URL).trim() || asString(config.MONGODB_URI).trim();
+  const databaseUrl = asString(config.DATABASE_URL).trim();
   const jwtSecret = asString(config.JWT_SECRET).trim();
 
   if (!databaseUrl) {

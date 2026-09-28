@@ -1,6 +1,6 @@
 import {
   IsArray,
-  IsMongoId,
+  IsUUID,
   IsOptional,
   IsString,
   MinLength,
@@ -16,16 +16,16 @@ export class CreateProfessionalDto {
   lastName: string;
 
   @IsOptional()
-  @IsMongoId()
+  @IsUUID()
   userId?: string;
 
   @IsOptional()
   @IsArray()
-  @IsMongoId({ each: true })
+  @IsUUID('all', { each: true })
   specialtyIds?: string[];
 
   @IsOptional()
   @IsArray()
-  @IsMongoId({ each: true })
+  @IsUUID('all', { each: true })
   branchIds?: string[];
 }

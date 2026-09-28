@@ -1,7 +1,7 @@
 {
   "name": "turnos-api",
   "version": "0.0.1",
-  "description": "API NestJS de turnos por secretaría (Mongo en Docker)",
+  "description": "API NestJS de turnos por secretaría (Postgres en Docker)",
   "author": "",
   "private": true,
   "license": "UNLICENSED",
@@ -62,7 +62,6 @@
     "eslint-plugin-prettier": "^5.2.2",
     "globals": "^17.0.0",
     "jest": "^30.0.0",
-    "mongodb-memory-server": "^11.2.0",
     "prettier": "^3.4.2",
     "prisma": "^6.19.3",
     "source-map-support": "^0.5.21",
