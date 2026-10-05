@@ -15,9 +15,9 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { AppointmentsService } from './appointments.service';
-import { CreateAppointmentDto } from './dto/create-appointment.dto';
-import { ListAppointmentsQueryDto } from './dto/list-appointments-query.dto';
-import { UpdateAppointmentDto } from './dto/update-appointment.dto';
+import { CreateAppointmentDto } from './turno/dto/create-appointment.dto';
+import { ListAppointmentsQueryDto } from './turno/dto/list-appointments-query.dto';
+import { UpdateAppointmentDto } from './turno/dto/update-appointment.dto';
 
 @ApiTags('appointments')
 @ApiBearerAuth()

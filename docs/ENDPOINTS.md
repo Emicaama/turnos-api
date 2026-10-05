@@ -520,7 +520,7 @@ Errores transversales (guards / ValidationPipe): `401` sin Bearer válido; `403`
 | Body | Sin body |
 | Respuesta OK | `200` array de Appointment |
 | Errores | `400` query inválida; `403` agenda ajena; `404` profesional inexistente; `401` |
-| Evidencia | [`src/appointments/professionals-agenda.controller.ts`](../src/appointments/professionals-agenda.controller.ts), [`src/appointments/dto/agenda-query.dto.ts`](../src/appointments/dto/agenda-query.dto.ts) |
+| Evidencia | [`src/appointments/professionals-agenda.controller.ts`](../src/appointments/professionals-agenda.controller.ts), [`src/appointments/turno/dto/agenda-query.dto.ts`](../src/appointments/turno/dto/agenda-query.dto.ts) |
 | Flujos | F4 |
 
 ---
@@ -661,7 +661,7 @@ Si el horario ya estaba ocupado, `result` es `lista_de_espera` y el cuerpo trae 
 | Body | Sin body |
 | Respuesta OK | `200` array Appointment |
 | Errores | `400` query inválida; `403` profesional sin `professionalId` en token; `401` |
-| Evidencia | [`src/appointments/dto/list-appointments-query.dto.ts`](../src/appointments/dto/list-appointments-query.dto.ts) |
+| Evidencia | [`src/appointments/turno/dto/list-appointments-query.dto.ts`](../src/appointments/turno/dto/list-appointments-query.dto.ts) |
 | Flujos | F3 |
 
 ---
@@ -695,7 +695,7 @@ Si el horario ya estaba ocupado, `result` es `lista_de_espera` y el cuerpo trae 
 | Body | JSON; todos los campos opcionales |
 | Respuesta OK | `200` Appointment (el nuevo si reprogramó) |
 | Errores | `400` transición o reprogramación inválida / fuera de disponibilidad; `403`; `404`; `409` solape al recrear; `401` |
-| Evidencia | [`src/appointments/dto/update-appointment.dto.ts`](../src/appointments/dto/update-appointment.dto.ts), [`src/appointments/status-transitions.ts`](../src/appointments/status-transitions.ts) |
+| Evidencia | [`src/appointments/turno/dto/update-appointment.dto.ts`](../src/appointments/turno/dto/update-appointment.dto.ts), [`src/appointments/status/status-transitions.ts`](../src/appointments/status/status-transitions.ts) |
 | Flujos | F3 |
 
 **Body (cambio de estado):**

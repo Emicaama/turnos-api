@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '../auth/auth-user';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AppointmentsService } from './appointments.service';
-import { AgendaQueryDto } from './dto/agenda-query.dto';
+import { AgendaQueryDto } from './turno/dto/agenda-query.dto';
 
 @ApiTags('professionals')
 @ApiBearerAuth()

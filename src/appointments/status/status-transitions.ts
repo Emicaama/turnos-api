@@ -1,4 +1,4 @@
-import { AppointmentStatus } from '../common/enums/appointment-status.enum';
+import { AppointmentStatus } from '../../common/enums/appointment-status.enum';
 
 const ALLOWED: Record<AppointmentStatus, AppointmentStatus[]> = {
   [AppointmentStatus.Programado]: [

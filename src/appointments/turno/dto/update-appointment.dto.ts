@@ -1,5 +1,5 @@
 import { IsDateString, IsEnum, IsOptional, IsString } from 'class-validator';
-import { AppointmentStatus } from '../../common/enums/appointment-status.enum';
+import { AppointmentStatus } from '../../../common/enums/appointment-status.enum';
 
 export class UpdateAppointmentDto {
   @IsOptional()

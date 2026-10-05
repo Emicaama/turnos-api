@@ -51,7 +51,7 @@ Si el profesional tiene `branchIds` no vacíos, F3 solo admite esas sucursales.
 6. Listar: `GET /api/v1/appointments` con query opcional `status`, `professionalId`, `branchId`, `from`, `to`. El profesional solo ve los suyos.
 7. Anunciar: `PATCH /api/v1/appointments/:id` `{ "status": "en_sala_de_espera" }` (secretaría/admin). El profesional dueño cierra con `{ "status": "atendido" }`.
 8. Cancelar: `POST /api/v1/appointments/:id/cancel` (solo admin/secretaría). Si hay lista de espera ese día, la respuesta incluye `promoted`. Reprogramar: `PATCH` con `startAt`/`endAt` (cancela el actual y crea uno nuevo; solo desde `programado`).
-Entrypoint / evidencia: [`src/appointments/appointments.controller.ts`](../src/appointments/appointments.controller.ts), [`src/appointments/status-transitions.ts`](../src/appointments/status-transitions.ts)
+Entrypoint / evidencia: [`src/appointments/appointments.controller.ts`](../src/appointments/appointments.controller.ts), [`src/appointments/status/status-transitions.ts`](../src/appointments/status/status-transitions.ts)
 
 Transiciones: `programado` → `en_sala_de_espera`|`cancelado`; `en_sala_de_espera` → `atendido`|`cancelado`. `atendido` y `cancelado` no avanzan. El profesional no cancela ni reprograma.
 

@@ -28,7 +28,7 @@ Centralizar la agenda clínica para que un intermediario (secretaría) asigne ho
 |----|-------|-------|---------|-----------|-----------|
 | F1 | Autenticarse | Usuario con cuenta (`admin`, `secretaria`, `profesional`) | `POST /api/v1/auth/login` | JWT `accessToken`, o `401` si el email o la clave no coinciden | [`src/auth/auth.controller.ts`](../src/auth/auth.controller.ts), [`src/auth/auth.service.ts`](../src/auth/auth.service.ts) |
 | F2 | Configurar catálogo clínico | Admin (sucursales, especialidades, profesionales, disponibilidad, usuarios); secretaría o admin (pacientes) | CRUD bajo `/api/v1/branches`, `/specialties`, `/professionals`, `/availability`, `/patients`, `/users` | Catálogo listo para agendar, o `403` si el rol no escribe ese recurso | controllers en `src/branches/`, `src/specialties/`, `src/professionals/`, `src/availability/`, `src/patients/`, `src/users/` |
-| F3 | Generar y controlar turnos | Secretaría o admin (alta, reprogramación y cancelación); profesional (cambio de estado propio) | `POST/GET/PATCH /api/v1/appointments`, `POST .../cancel` | Turno en un estado válido, o `400` / `403` / `404` / `409` | [`src/appointments/appointments.controller.ts`](../src/appointments/appointments.controller.ts), [`src/appointments/appointments.service.ts`](../src/appointments/appointments.service.ts), [`src/appointments/status-transitions.ts`](../src/appointments/status-transitions.ts) |
+| F3 | Generar y controlar turnos | Secretaría o admin (alta, reprogramación y cancelación); profesional (cambio de estado propio) | `POST/GET/PATCH /api/v1/appointments`, `POST .../cancel` | Turno en un estado válido, o `400` / `403` / `404` / `409` | [`src/appointments/appointments.controller.ts`](../src/appointments/appointments.controller.ts), [`src/appointments/appointments.service.ts`](../src/appointments/appointments.service.ts), [`src/appointments/status/status-transitions.ts`](../src/appointments/status/status-transitions.ts) |
 | F4 | Consultar agenda | Secretaría, admin o el profesional dueño | `GET /api/v1/professionals/:id/agenda?from=&to=` | Turnos no cancelados en el rango, o `403` si un profesional pide la agenda de otro | [`src/appointments/professionals-agenda.controller.ts`](../src/appointments/professionals-agenda.controller.ts) |
 | F5 | Leer la bitácora de un turno | Admin o secretaría | `GET /api/v1/binnacle/:appointmentId` | Notas en orden cronológico (`Creó el turno`, `Cambió el estado a …`, `Canceló el turno`, `Reprogramó el turno`), o `403` si el rol es profesional | [`src/binnacle/binnacle.controller.ts`](../src/binnacle/binnacle.controller.ts) |
 
@@ -75,7 +75,7 @@ El caso integrado es el de la secretaría, que es el actor para el que existe la
 
 6. **F3 — Vida del turno.** `PATCH /api/v1/appointments/:id`.
    - Solo `notes`: actualiza la nota y no escribe bitácora.
-   - `status`: solo transiciones permitidas ([`src/appointments/status-transitions.ts`](../src/appointments/status-transitions.ts)).
+   - `status`: solo transiciones permitidas ([`src/appointments/status/status-transitions.ts`](../src/appointments/status/status-transitions.ts)).
      - `programado` → `en_sala_de_espera` o `cancelado`.
      - `en_sala_de_espera` → `atendido` o `cancelado`.
      - `atendido` y `cancelado` no salen a ningún estado (`400`). Un cancelado responde «Un turno cancelado no avanza».
