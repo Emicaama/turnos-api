@@ -46,13 +46,14 @@ Si el profesional tiene `branchIds` no vacíos, F3 solo admite esas sucursales.
 1. Login secretaría o admin (F1).
 2. Obtener `patientId`, `professionalId`, `branchId` (F2).
 3. `POST /api/v1/appointments` con `startAt`/`endAt` ISO. El intervalo debe caer en disponibilidad interpretada con `CLINIC_TZ` (example: `America/Argentina/Buenos_Aires`; default de código si falta: `UTC`).
-4. Resultado esperado: `201`, `status: "pendiente"`. Solape con otro turno `pendiente`/`confirmado` del mismo profesional y sucursal → `409`. Fuera de franja o profesional que no atiende esa sucursal → `400`. Login profesional en este POST → `403`.
-5. Listar: `GET /api/v1/appointments` con query opcional `status`, `professionalId`, `branchId`, `from`, `to`. El profesional solo ve los suyos.
-6. Confirmar: `PATCH /api/v1/appointments/:id` `{ "status": "confirmado" }` (secretaría/admin, o el profesional dueño).
-7. Cancelar: `POST /api/v1/appointments/:id/cancel` (solo admin/secretaría). Reprogramar: `PATCH` con `startAt`/`endAt` (cancela el actual y crea uno nuevo).
+4. Resultado esperado: `201` con `result: "programado"` y `appointment.status: "programado"`. Si ese horario ya tiene un turno activo, el mismo POST responde `201` con `result: "lista_de_espera"`. Si dos reservas entran juntas a un hueco que ambas vieron libre, la segunda es `409`. Fuera de franja o profesional que no atiende esa sucursal → `400`. Login profesional en este POST → `403`.
+5. Entreturno: el mismo POST con `entreturno: true`. El inicio, en `CLINIC_TZ`, tiene que ser `:15` o `:45` y el fin tiene que coincidir con el fin del turno que se acorta. Si no, `400`.
+6. Listar: `GET /api/v1/appointments` con query opcional `status`, `professionalId`, `branchId`, `from`, `to`. El profesional solo ve los suyos.
+7. Anunciar: `PATCH /api/v1/appointments/:id` `{ "status": "en_sala_de_espera" }` (secretaría/admin). El profesional dueño cierra con `{ "status": "atendido" }`.
+8. Cancelar: `POST /api/v1/appointments/:id/cancel` (solo admin/secretaría). Si hay lista de espera ese día, la respuesta incluye `promoted`. Reprogramar: `PATCH` con `startAt`/`endAt` (cancela el actual y crea uno nuevo; solo desde `programado`).
 Entrypoint / evidencia: [`src/appointments/appointments.controller.ts`](../src/appointments/appointments.controller.ts), [`src/appointments/status-transitions.ts`](../src/appointments/status-transitions.ts)
 
-Transiciones: `pendiente` → `confirmado`|`cancelado`; `confirmado` → `completado`|`ausente`|`cancelado`. El profesional no cancela ni reprograma.
+Transiciones: `programado` → `en_sala_de_espera`|`cancelado`; `en_sala_de_espera` → `atendido`|`cancelado`. `atendido` y `cancelado` no avanzan. El profesional no cancela ni reprograma.
 
 Ejemplo de slot lunes 09:00 ART usado en tests de TZ: `2026-08-17T12:00:00.000Z` con `CLINIC_TZ=America/Argentina/Buenos_Aires`.
 

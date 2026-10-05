@@ -38,6 +38,7 @@ export class SeedService {
   async reset(): Promise<void> {
     await this.prisma.$transaction([
       this.prisma.binnacleRecord.deleteMany(),
+      this.prisma.waitlistEntry.deleteMany(),
       this.prisma.appointment.deleteMany(),
       this.prisma.availability.deleteMany(),
       this.prisma.professional.deleteMany(),
@@ -138,7 +139,7 @@ export class SeedService {
               branchId: branch.id,
               startAt: new Date('2026-10-05T09:00:00-03:00'),
               endAt: new Date('2026-10-05T09:30:00-03:00'),
-              status: AppointmentStatus.Pendiente,
+              status: AppointmentStatus.Programado,
               notes: 'Control con Ana',
             },
             {
@@ -147,7 +148,7 @@ export class SeedService {
               branchId: branch.id,
               startAt: new Date('2026-10-05T10:00:00-03:00'),
               endAt: new Date('2026-10-05T10:30:00-03:00'),
-              status: AppointmentStatus.Confirmado,
+              status: AppointmentStatus.Programado,
               notes: 'Control con Ana',
             },
             {
@@ -156,7 +157,7 @@ export class SeedService {
               branchId: branch.id,
               startAt: new Date('2026-10-05T11:00:00-03:00'),
               endAt: new Date('2026-10-05T11:30:00-03:00'),
-              status: AppointmentStatus.Pendiente,
+              status: AppointmentStatus.Programado,
               notes: 'Control con Luis',
             },
           ],

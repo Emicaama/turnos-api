@@ -25,7 +25,7 @@ services:
       - "3001:3000"
     environment:
       PORT: 3000
-      DATABASE_URL: postgresql://turnos:turnos_secret@postgres:5432/turnos?schema=public
+      DATABASE_URL: postgresql://turnos:turnos_secret@postgres:5432/turnos
       JWT_SECRET: change-me-use-at-least-16-chars
       JWT_EXPIRES_IN: 8h
       CLINIC_TZ: America/Argentina/Buenos_Aires
@@ -44,6 +44,31 @@ services:
       timeout: 5s
       retries: 5
       start_period: 40s
+
+  web:
+    build:
+      context: ../turnos-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      API_URL: http://api:3000
+      PORT: 3000
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
 
 volumes:
   postgres_data:

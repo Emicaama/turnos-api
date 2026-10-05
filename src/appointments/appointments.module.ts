@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { BinnacleModule } from '../binnacle/binnacle.module';
 import { AvailabilityModule } from '../availability/availability.module';
 import { BranchesModule } from '../branches/branches.module';
 import { NotificationsModule } from '../notifications/notifications.module';
@@ -15,7 +14,6 @@ import { ProfessionalsAgendaController } from './professionals-agenda.controller
     ProfessionalsModule,
     BranchesModule,
     AvailabilityModule,
-    BinnacleModule,
     NotificationsModule,
   ],
   controllers: [AppointmentsController, ProfessionalsAgendaController],

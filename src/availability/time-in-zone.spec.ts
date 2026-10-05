@@ -1,4 +1,9 @@
-import { isHmWithinWindow, weekdayAndHm } from './time-in-zone';
+import {
+  clinicDay,
+  clockMinute,
+  isHmWithinWindow,
+  weekdayAndHm,
+} from './time-in-zone';
 
 describe('time-in-zone', () => {
   it('calcula weekday y hora en America/Argentina/Buenos_Aires', () => {
@@ -14,5 +19,13 @@ describe('time-in-zone', () => {
 
   it('rechaza un slot que termina después del cierre', () => {
     expect(isHmWithinWindow('16:45', '17:15', '09:00', '17:00')).toBe(false);
+  });
+
+  it('arma el día de clínica y el minuto del reloj', () => {
+    const date = new Date('2026-08-17T12:15:00.000Z');
+    expect(clinicDay(date, 'America/Argentina/Buenos_Aires')).toBe(
+      '2026-08-17',
+    );
+    expect(clockMinute(date, 'America/Argentina/Buenos_Aires')).toBe(15);
   });
 });

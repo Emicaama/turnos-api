@@ -4,7 +4,7 @@
 
 API REST NestJS con prefijo global `api/v1` ([`src/main.ts`](../src/main.ts)). Auth JWT Bearer en todas las rutas salvo las marcadas `@Public()` (solo login). `RolesGuard` global: sin `@Roles` basta estar autenticado; con `@Roles` hace falta ese rol ([`src/app.module.ts`](../src/app.module.ts)). POST Nest responde `201`. Validación: `400` si el body/query no cumple class-validator. Documentación interactiva (no es un recurso de negocio): `GET /docs`.
 
-IDs: campo `id` UUID (Prisma). Roles: `admin` | `secretaria` | `profesional`. Estados de turno: `pendiente` | `confirmado` | `completado` | `ausente` | `cancelado`.
+IDs: campo `id` UUID (Prisma). Roles: `admin` | `secretaria` | `profesional`. Estados de turno: `programado` | `en_sala_de_espera` | `atendido` | `cancelado`.
 
 `GET /api/v1/health` es público y responde `{ "status": "ok", "postgres": true }` si Postgres acepta `SELECT 1` ([`src/health/health.controller.ts`](../src/health/health.controller.ts)).
 
@@ -35,7 +35,7 @@ IDs: campo `id` UUID (Prisma). Roles: `admin` | `secretaria` | `profesional`. Es
 | GET | `/api/v1/professionals/:id/agenda` | Agenda en un rango | F4 | [`src/appointments/professionals-agenda.controller.ts`](../src/appointments/professionals-agenda.controller.ts) |
 | GET | `/api/v1/availability` | Lista franjas | F2 | [`src/availability/availability.controller.ts`](../src/availability/availability.controller.ts) |
 | POST | `/api/v1/availability` | Crea franja semanal | F2 | [`src/availability/availability.controller.ts`](../src/availability/availability.controller.ts) |
-| POST | `/api/v1/appointments` | Crea turno pendiente | F3 | [`src/appointments/appointments.controller.ts`](../src/appointments/appointments.controller.ts) |
+| POST | `/api/v1/appointments` | Programa un turno o encola la lista de espera | F3 | [`src/appointments/appointments.controller.ts`](../src/appointments/appointments.controller.ts) |
 | GET | `/api/v1/appointments` | Lista/filtra turnos | F3 | [`src/appointments/appointments.controller.ts`](../src/appointments/appointments.controller.ts) |
 | GET | `/api/v1/appointments/:id` | Obtiene un turno | F3 | [`src/appointments/appointments.controller.ts`](../src/appointments/appointments.controller.ts) |
 | PATCH | `/api/v1/appointments/:id` | Estado, notas o reprogramación | F3 | [`src/appointments/appointments.controller.ts`](../src/appointments/appointments.controller.ts) |
@@ -594,7 +594,7 @@ Errores transversales (guards / ValidationPipe): `401` sin Bearer válido; `403`
 
 ### `POST /api/v1/appointments`
 
-**Qué hace:** Crea turno `pendiente` si el slot está en disponibilidad (`CLINIC_TZ`), el profesional atiende la sucursal y no hay solape con turnos activos.
+**Qué hace:** Si el horario está libre, crea un turno `programado`. Si ya hay un turno activo ahí, anota al paciente en la lista de espera del profesional, la sucursal y el día (mismo endpoint). Con `entreturno: true` acorta el turno que cubre un inicio `:15` o `:45`. La escritura va dentro de un lock de Postgres por profesional y sucursal.
 
 | | |
 |--|--|
@@ -602,8 +602,8 @@ Errores transversales (guards / ValidationPipe): `401` sin Bearer válido; `403`
 | Path params | Sin path params |
 | Query | Sin query |
 | Body | JSON |
-| Respuesta OK | `201` Appointment |
-| Errores | `403` profesional (guard o servicio); `409` solape; `400` fuera de franja, rango invertido, catálogo inválido; `404` paciente/profesional/sucursal; `401` |
+| Respuesta OK | `201` `{ result: "programado", appointment, acortado? }` o `{ result: "lista_de_espera", waitlist }` |
+| Errores | `403` profesional (guard o servicio); `409` el hueco acaba de ocuparse; `400` fuera de franja, entreturno inválido, rango invertido, catálogo inválido; `404` paciente/profesional/sucursal; `401` |
 | Evidencia | [`src/appointments/appointments.controller.ts`](../src/appointments/appointments.controller.ts), [`src/appointments/appointments.service.ts`](../src/appointments/appointments.service.ts) |
 | Flujos | F3 |
 
@@ -616,28 +616,36 @@ Errores transversales (guards / ValidationPipe): `401` sin Bearer válido; `403`
   "branchId": "66b000000000000000000010",
   "startAt": "2026-08-17T12:00:00.000Z",
   "endAt": "2026-08-17T12:30:00.000Z",
-  "notes": "Primera vez"
+  "notes": "Primera vez",
+  "entreturno": false
 }
 ```
 
-`notes` opcional. `startAt`/`endAt` ISO (`@IsDateString`).
+`notes` y `entreturno` opcionales. `startAt`/`endAt` ISO (`@IsDateString`). `entreturno: true` exige inicio `:15` o `:45` en `CLINIC_TZ` y que `endAt` sea el fin del turno que se acorta.
 
-**Respuesta (ejemplo):**
+**Respuesta (ejemplo, hueco libre):**
 
 ```json
 {
-  "id": "66b000000000000000000040",
-  "patientId": "66b000000000000000000020",
-  "professionalId": "66b0000000000000000000aa",
-  "branchId": "66b000000000000000000010",
-  "startAt": "2026-08-17T12:00:00.000Z",
-  "endAt": "2026-08-17T12:30:00.000Z",
-  "status": "pendiente",
-  "notes": "Primera vez",
-  "createdAt": "2026-08-18T15:00:00.000Z",
-  "updatedAt": "2026-08-18T15:00:00.000Z"
+  "result": "programado",
+  "appointment": {
+    "id": "66b000000000000000000040",
+    "patientId": "66b000000000000000000020",
+    "professionalId": "66b0000000000000000000aa",
+    "branchId": "66b000000000000000000010",
+    "startAt": "2026-08-17T12:00:00.000Z",
+    "endAt": "2026-08-17T12:30:00.000Z",
+    "status": "programado",
+    "entreturno": false,
+    "acortado": false,
+    "notes": "Primera vez",
+    "createdAt": "2026-08-18T15:00:00.000Z",
+    "updatedAt": "2026-08-18T15:00:00.000Z"
+  }
 }
 ```
+
+Si el horario ya estaba ocupado, `result` es `lista_de_espera` y el cuerpo trae `waitlist` (`patientId`, `professionalId`, `branchId`, `day`) en lugar de `appointment`.
 
 ---
 
@@ -677,7 +685,7 @@ Errores transversales (guards / ValidationPipe): `401` sin Bearer válido; `403`
 
 ### `PATCH /api/v1/appointments/:id`
 
-**Qué hace:** Si vienen `startAt`/`endAt`, reprograma (cancela el actual y crea otro). Si viene `status`, transiciona. Si solo `notes`, actualiza notas. El profesional no reprograma; solo puede pasar a `confirmado`, `completado` o `ausente`.
+**Qué hace:** Si vienen `startAt`/`endAt`, reprograma (cancela el actual y crea otro `programado`). Si viene `status`, transiciona. Si solo `notes`, actualiza notas. El profesional no reprograma; solo puede pasar a `atendido`.
 
 | | |
 |--|--|
@@ -693,7 +701,7 @@ Errores transversales (guards / ValidationPipe): `401` sin Bearer válido; `403`
 **Body (cambio de estado):**
 
 ```json
-{ "status": "confirmado" }
+{ "status": "en_sala_de_espera" }
 ```
 
 **Body (reprogramar):**
@@ -705,13 +713,13 @@ Errores transversales (guards / ValidationPipe): `401` sin Bearer válido; `403`
 }
 ```
 
-Transiciones: `pendiente` → `confirmado` | `cancelado`; `confirmado` → `completado` | `ausente` | `cancelado`.
+Transiciones: `programado` → `en_sala_de_espera` | `cancelado`; `en_sala_de_espera` → `atendido` | `cancelado`. `atendido` y `cancelado` no avanzan.
 
 ---
 
 ### `POST /api/v1/appointments/:id/cancel`
 
-**Qué hace:** Pasa el turno a `cancelado` (misma máquina de estados). Anota `Canceló el turno` en la bitácora.
+**Qué hace:** Pasa el turno a `cancelado` (misma máquina de estados). Anota `Canceló el turno` en la bitácora. Si hay lista de espera para ese profesional, sucursal y día, el primero de la cola queda `programado` en el hueco (`promoted` en la respuesta).
 
 | | |
 |--|--|
@@ -719,7 +727,7 @@ Transiciones: `pendiente` → `confirmado` | `cancelado`; `confirmado` → `comp
 | Path params | `id` |
 | Query | Sin query |
 | Body | Sin body |
-| Respuesta OK | `201` Appointment con `status: "cancelado"` (Nest POST) |
+| Respuesta OK | `201` Appointment con `status: "cancelado"` y, si hubo promoción, `promoted` (Nest POST) |
 | Errores | `403` profesional; `400` si el estado actual no permite cancelar; `404`; `401` |
 | Evidencia | [`src/appointments/appointments.controller.ts`](../src/appointments/appointments.controller.ts) |
 | Flujos | F3 |
@@ -755,4 +763,4 @@ Transiciones: `pendiente` → `confirmado` | `cancelado`; `confirmado` → `comp
 ]
 ```
 
-Cada nota es una frase: `Creó el turno`, `Cambió el estado a confirmado`, `Canceló el turno`, `Reprogramó el turno` o `Creó el turno reprogramado`.
+Cada nota es una frase: `Creó el turno`, `Creó un entreturno`, `Se acortó por un entreturno`, `Anunció al paciente en sala de espera`, `Marcó el turno como atendido`, `Canceló el turno`, `El horario pasó al primero de la lista de espera`, `Asignó el horario liberado desde la lista de espera`, `Reprogramó el turno` o `Creó el turno reprogramado`.

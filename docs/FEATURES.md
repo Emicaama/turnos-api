@@ -23,15 +23,17 @@ Capacidades de la API alineadas a F1–F5: identidad, catálogo clínico, contro
 
 ### F3 — Generar y controlar turnos
 
-- **Alta de turno pendiente** — solo admin/secretaría — evidencia: [`src/appointments/appointments.controller.ts`](../src/appointments/appointments.controller.ts)
+- **Alta programada o lista de espera** — el mismo `POST /appointments`; si el hueco está libre queda `programado`, si ya está tomado encola — evidencia: [`src/appointments/appointments.service.ts`](../src/appointments/appointments.service.ts)
+- **Bloqueo de agenda** — `pg_advisory_xact_lock` por profesional y sucursal; la reserva que pierde la carrera responde `409` — evidencia: [`src/appointments/agenda-lock.ts`](../src/appointments/agenda-lock.ts)
+- **Entreturno** — `entreturno: true`, solo inicio `:15` o `:45`; acorta el turno que cubre ese instante — evidencia: [`src/appointments/entreturno.ts`](../src/appointments/entreturno.ts)
 - **Validación de catálogo** — paciente/profesional/sucursal existentes; profesional en esa sucursal si tiene `branchIds` — evidencia: [`src/appointments/appointments.service.ts`](../src/appointments/appointments.service.ts) (`assertCatalog`)
 - **Validación de disponibilidad** — slot dentro de franja en `CLINIC_TZ` — evidencia: [`src/availability/time-in-zone.ts`](../src/availability/time-in-zone.ts), test [`src/availability/time-in-zone.spec.ts`](../src/availability/time-in-zone.spec.ts)
-- **Anti-solapamiento** — turnos activos (`pendiente`/`confirmado`) del mismo profesional y sucursal — evidencia: [`src/appointments/overlap.ts`](../src/appointments/overlap.ts), [`src/appointments/appointments.service.ts`](../src/appointments/appointments.service.ts) (`assertNoOverlap`)
-- **Máquina de estados** — transiciones permitidas y reprogramación solo pendiente/confirmado — evidencia: [`src/appointments/status-transitions.ts`](../src/appointments/status-transitions.ts)
-- **Reprogramar** — cancela y crea turno nuevo — evidencia: `reschedule` en [`src/appointments/appointments.service.ts`](../src/appointments/appointments.service.ts)
-- **Cancelar** — `POST .../cancel`; el profesional no cancela — evidencia: mismo controller/service
+- **Anti-solapamiento** — turnos activos (`programado`/`en_sala_de_espera`) del mismo profesional y sucursal — evidencia: [`src/appointments/appointments.service.ts`](../src/appointments/appointments.service.ts)
+- **Máquina de estados** — `programado` → `en_sala_de_espera` → `atendido`, o `cancelado`; reprogramar solo `programado` — evidencia: [`src/appointments/status-transitions.ts`](../src/appointments/status-transitions.ts)
+- **Reprogramar** — cancela y crea turno nuevo; el hueco viejo puede promover la lista de espera — evidencia: `reschedule` en [`src/appointments/appointments.service.ts`](../src/appointments/appointments.service.ts)
+- **Cancelar** — `POST .../cancel`; el profesional no cancela; promueve al primero de la lista de ese día — evidencia: mismo controller/service
 - **Listado filtrado** — status, profesional, sucursal, rango; profesional acotado a los suyos — evidencia: [`src/appointments/dto/list-appointments-query.dto.ts`](../src/appointments/dto/list-appointments-query.dto.ts)
-- **Notificación por log** — eventos created/cancelled/rescheduled/status_changed — evidencia: [`src/notifications/log-notification.adapter.ts`](../src/notifications/log-notification.adapter.ts)
+- **Notificación por log** — alta, cancelación, reprogramación, sala de espera y lista de espera — evidencia: [`src/notifications/log-notification.adapter.ts`](../src/notifications/log-notification.adapter.ts)
 
 ### F4 — Consultar agenda
 

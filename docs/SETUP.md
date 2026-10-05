@@ -43,11 +43,11 @@ Arranque sin watch: `npm start`. Producción compilada: `npm run build` y `npm r
 |-------|-------------------|-------|
 | F1 | `POST /api/v1/auth/login` con un `User` existente | `201` y cuerpo con `accessToken` |
 | F2 | `GET /api/v1/branches` con Bearer | `200` y array (vacío si no hay catálogo) |
-| F3 | `POST /api/v1/appointments` con ids de catálogo y slot dentro de una franja (`CLINIC_TZ`) | `201`, `status: pendiente` |
+| F3 | `POST /api/v1/appointments` con ids de catálogo y slot dentro de una franja (`CLINIC_TZ`) | `201`, `result: "programado"`, `status: programado` |
 | F4 | `GET /api/v1/professionals/:id/agenda?from=&to=` | `200` y array |
 | F5 | Tras cancelar: `GET /api/v1/binnacle/:appointmentId` | `200` y nota `Canceló el turno` |
 
-Reglas de F3 sin API: `npm test` (solape, transiciones, TZ; 3 suites / 8 tests).
+Reglas de F3 sin API: `npm test` (decisión de hueco, entreturno, transiciones, TZ).
 
 Swagger (exploración, no es un flujo): http://localhost:3000/docs
 

@@ -14,10 +14,9 @@ enum Role {
 }
 
 enum AppointmentStatus {
-  pendiente
-  confirmado
-  completado
-  ausente
+  programado
+  en_sala_de_espera
+  atendido
   cancelado
 }
 
@@ -91,12 +90,26 @@ model Appointment {
   branchId       String
   startAt        DateTime
   endAt          DateTime
-  status         AppointmentStatus @default(pendiente)
+  status         AppointmentStatus @default(programado)
+  entreturno     Boolean           @default(false)
+  acortado       Boolean           @default(false)
   notes          String?
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
 
   @@index([professionalId, branchId, startAt, endAt, status])
+}
+
+model WaitlistEntry {
+  id                    String    @id @default(uuid())
+  patientId             String
+  professionalId        String
+  branchId              String
+  day                   String
+  createdAt             DateTime  @default(now())
+  promotedAppointmentId String?
+
+  @@index([professionalId, branchId, day, createdAt])
 }
 
 model BinnacleRecord {

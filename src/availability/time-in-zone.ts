@@ -31,6 +31,23 @@ export function weekdayAndHm(date: Date, timeZone: string): WeekdayAndHm {
   };
 }
 
+export function clinicDay(date: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === 'year')?.value ?? '0000';
+  const month = parts.find((part) => part.type === 'month')?.value ?? '01';
+  const day = parts.find((part) => part.type === 'day')?.value ?? '01';
+  return `${year}-${month}-${day}`;
+}
+
+export function clockMinute(date: Date, timeZone: string): number {
+  return Number(weekdayAndHm(date, timeZone).hm.slice(3));
+}
+
 export function isHmWithinWindow(
   startHm: string,
   endHm: string,

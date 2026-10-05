@@ -12,7 +12,7 @@
     "build": "nest build",
     "seed": "nest start --entryFile seed",
     "prisma:generate": "prisma generate",
-    "prisma:push": "prisma db push",
+    "prisma:push": "node scripts/prepare-appointment-status.cjs && prisma db push --accept-data-loss",
     "postinstall": "prisma generate",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",

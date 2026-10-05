@@ -1,6 +1,6 @@
 # Historias de usuario
 
-Transcripción de `Historias de usuario.docx`, partida en bloques para citarlos (A1, A2, B1…). La cobertura de abajo es una lectura del código actual de `turnos-api`. No cambia el sistema.
+Transcripción de `Historias de usuario.docx`, partida en bloques para citarlos (A1, A2, B1…). La cobertura de abajo describe el código actual de `turnos-api`.
 
 ## Cobertura aproximada
 
@@ -8,10 +8,10 @@ Esta API es una agenda de consultorio: secretaría reserva turnos contra la disp
 
 | ID | Historia | Cobertura |
 |----|----------|-----------|
-| A1 | Reserva de turno seguro | Parcial |
-| A2 | Entreturno dinámico | No |
-| A3 | Lista de espera por cancelación | No |
-| A4 | Transición del estado de atención | Parcial |
+| A1 | Reserva de turno seguro | Sí |
+| A2 | Entreturno dinámico | Sí |
+| A3 | Lista de espera por cancelación | Sí |
+| A4 | Transición del estado de atención | Sí |
 | A5 | Triaje de guardia | No |
 | B1 | Signos vitales | No |
 | B2 | Medicación prescrita | No |
@@ -22,11 +22,15 @@ Esta API es una agenda de consultorio: secretaría reserva turnos contra la disp
 | D1 | Cálculo de costos por cobertura | No |
 | D2 | Cargo automático por insumos | No |
 
-De 13 historias, 2 están a medias (A1 y A4) y 11 no existen en el proyecto.
+De 13 historias, 4 están cubiertas (A1–A4) y 9 no existen en el proyecto.
 
-**A1, qué sí hay.** La secretaría o el admin crean un turno (`POST /api/v1/appointments`) si el horario cae en la disponibilidad y no se solapa con otro turno `pendiente` o `confirmado` del mismo profesional en la misma sucursal. El choque responde `409`. **Qué no hay.** El alta queda en `pendiente`, no en `Programado`. El control de solape es una consulta previa en la aplicación, no un bloqueo ni una transacción de base que garantice dos reservas en el mismo milisegundo.
+**A1.** `POST /api/v1/appointments` deja el turno en `programado` si el horario está libre. La reserva corre dentro de una transacción con `pg_advisory_xact_lock` sobre profesional y sucursal: si dos recepcionistas entran juntas al mismo hueco, la segunda responde `409` («El turno acaba de ser ocupado»).
 
-**A4, qué sí hay.** Hay máquina de estados: `pendiente` → `confirmado` o `cancelado`; `confirmado` → `completado`, `ausente` o `cancelado`. Un estado final no avanza (`400`). **Qué no hay.** No existen `En Sala de Espera` ni `Atendido`. `completado` se parece a atendido, pero no es el mismo flujo. La notificación es un log, no un aviso al consultorio.
+**A2.** El mismo POST con `entreturno: true` solo si el inicio cae en `:15` o `:45` (hora de `CLINIC_TZ`). Acorta el turno que contiene ese instante y etiqueta `acortado` / `entreturno`.
+
+**A3.** Si ese horario ya está ocupado, el mismo POST no abre otro endpoint: anota al paciente en la lista de espera de ese profesional, sucursal y día. Al cancelar (o reprogramar) el hueco, el primero de la cola queda `programado` ahí y el log pide avisar al paciente.
+
+**A4.** Estados: `programado` → `en_sala_de_espera` → `atendido`, y `cancelado` desde los dos primeros. No hay `confirmado`. Un `cancelado` no pasa a `atendido` (`400`). Entrar a sala de espera deja un aviso al consultorio en el log.
 
 ---
 
@@ -54,7 +58,7 @@ De 13 historias, 2 están a medias (A1 y A4) y 11 no existen en el proyecto.
 - Entonces el sistema debe procesar exitosamente solo la primera petición que ingrese a la base de datos.
 - Y debe rechazar la segunda petición con un mensaje claro de que el turno acaba de ser ocupado.
 
-**Cobertura: parcial.** Reserva y rechazo por solape, sí. Estado "Programado" y bloqueo real de base ante dos peticiones simultáneas, no.
+**Cobertura: sí.** El alta queda `programado`. Dos reservas simultáneas del mismo hueco se serializan con un lock de Postgres; la que pierde responde `409`.
 
 ### A2 — Inserción de entreturno dinámico
 
@@ -68,7 +72,7 @@ De 13 historias, 2 están a medias (A1 y A4) y 11 no existen en el proyecto.
 - Y el entreturno ocupa de las 10:15 AM a las 10:30 AM.
 - Y los turnos afectados quedan etiquetados para avisar al médico que tiene menos tiempo por paciente.
 
-**Cobertura: no.** El turno tiene inicio y fin fijos. No se acorta el turno vecino ni hay etiqueta de entreturno.
+**Cobertura: sí.** `entreturno: true` en el POST de turnos. Solo empieza a los `:15` o `:45`. El turno que cubre ese inicio se acorta y ambos quedan marcados (`acortado`, `entreturno`).
 
 ### A3 — Lista de espera por cancelación
 
@@ -83,7 +87,7 @@ De 13 historias, 2 están a medias (A1 y A4) y 11 no existen en el proyecto.
 - Y desencola a "Luis Medina" y le asigna las 11:00 AM.
 - Y alerta al recepcionista para avisar al paciente.
 
-**Cobertura: no.** Cancelar deja el hueco vacío. No hay cola ni aviso al paciente.
+**Cobertura: sí.** Si el horario pedido ya está tomado, el POST de turnos encola solo. Al liberarse ese día, el primero de la cola recibe el hueco y el log pide avisar al paciente.
 
 ### A4 — Transición del estado de atención
 
@@ -115,7 +119,7 @@ Estados pedidos:
 - Entonces el sistema bloquea la acción.
 - Y devuelve un error de negocio: un turno cancelado no avanza.
 
-**Cobertura: parcial.** Las transiciones inválidas se rechazan. Faltan sala de espera, atendido y el aviso al consultorio. Los estados reales son `pendiente`, `confirmado`, `completado`, `ausente` y `cancelado`.
+**Cobertura: sí.** Estados reales: `programado`, `en_sala_de_espera`, `atendido`, `cancelado`. `confirmado` no existe: de programado se anuncia directo en sala de espera y eso avisa al consultorio por log. Un cancelado no avanza.
 
 ### A5 — Triaje de guardia
 

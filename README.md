@@ -34,7 +34,7 @@ Cuentas del seed:
 - **Ana Pérez** — `ana.perez@turnos.local` / `Medico123!`
 - **Luis Gómez** — `luis.gomez@turnos.local` / `Medico123!`
 
-El seed también deja la sede central, dos pacientes y tres turnos el lunes 2026-10-05 (hora Argentina): Ana 09:00 pendiente y 10:00 confirmado, Luis 11:00 pendiente. Si la secretaría ya existe, no vuelve a insertar.
+El seed también deja la sede central, dos pacientes y tres turnos programados el lunes 2026-10-05 (hora Argentina): Ana 09:00 y 10:00, Luis 11:00. Si la secretaría ya existe, no vuelve a insertar.
 
 Los ids son UUID. Docker Desktop tiene que estar corriendo para `docker compose up -d`. El compose publica Postgres en el puerto **5433** del host para no pisar otro Postgres que use 5432.
 
@@ -60,17 +60,17 @@ El host usa el puerto **3001** porque el 3000 suele estar ocupado. Dentro del co
 4. Agenda `GET /api/v1/professionals/:id/agenda?from=&to=`
 5. Cancelar `POST /api/v1/appointments/:id/cancel` (queda en `GET /api/v1/binnacle/:id`)
 
-Reglas: un profesional no puede tener dos turnos activos (`pendiente`/`confirmado`) solapados en la misma sucursal (409). El horario debe caer en su disponibilidad. El profesional no crea turnos ajenos.
+Reglas: un profesional no puede tener dos turnos activos (`programado`/`en_sala_de_espera`) solapados en la misma sucursal. Si el horario ya está tomado, el mismo POST deja al paciente en la lista de espera. Si dos reservas entran juntas a un hueco libre, la segunda responde 409. El horario debe caer en su disponibilidad. El profesional no crea turnos ajenos. Un entreturno (`entreturno: true`) solo puede empezar a los :15 o :45.
 
 Horarios de disponibilidad se interpretan en `CLINIC_TZ`.
 
 ## Scripts
 
 - `npm run start:dev` — Nest watch
-- `npm run prisma:push` — sincroniza el schema con Postgres
+- `npm run prisma:push` — migra estados viejos si hace falta y sincroniza el schema con Postgres
 - `npm run seed` — datos demo (idempotente si ya existe la secretaría)
 - `npm test` — unitarios
-- `npm run test:e2e` — secretaría crea, solapamiento 409, profesional 403, bitácora al cancelar (usa la base `turnos_test`)
+- `npm run test:e2e` — programar, lista de espera, entreturno, estados y bitácora (usa la base `turnos_test`)
 
 ## Fuera de esta plantilla
 

@@ -14,7 +14,7 @@ No hay UI. Swagger queda en `/docs` (fuera del prefijo `api/v1`). Postgres y, si
 
 - **Secretaría**: crea, reprograma y cancela turnos; mantiene pacientes.
 - **Admin**: configura sucursales, especialidades, profesionales, disponibilidad y usuarios. También opera turnos.
-- **Profesional**: consulta su agenda y cambia el estado de sus turnos (confirmar, completar, ausente). No crea, no cancela y no reprograma.
+- **Profesional**: consulta su agenda y marca `atendido` un turno propio que ya está en sala de espera. No crea, no cancela y no reprograma.
 
 El paciente no entra a la API. Queda como registro que carga la secretaría o el admin.
 
@@ -65,23 +65,26 @@ El caso integrado es el de la secretaría, que es el actor para el que existe la
    - Paciente, profesional y sucursal tienen que existir (`404` si falta uno).
    - Si el profesional tiene `branchIds` y la sucursal no está, `400` («no atiende en esa sucursal»).
    - El intervalo, interpretado en `CLINIC_TZ` (example: `America/Argentina/Buenos_Aires`), tiene que caer el mismo día dentro de una franja de ese profesional y sucursal (`400` si no).
-   - No puede solaparse con otro turno `pendiente` o `confirmado` del mismo profesional en la misma sucursal (`409`).
-   - Si pasa: `201`, estado `pendiente`, nota de bitácora `Creó el turno` y un log `[created]` (no hay SMTP; [`src/notifications/log-notification.adapter.ts`](../src/notifications/log-notification.adapter.ts)).
+   - El alta corre con un lock de Postgres por profesional y sucursal. Si el hueco sigue libre: `201`, `result: "programado"`, estado `programado`, nota `Creó el turno` y un log `[created]`.
+   - Si ese horario ya estaba ocupado: `201`, `result: "lista_de_espera"` (mismo endpoint, sin turno nuevo).
+   - Si dos pedidos entran juntos a un hueco que ambos vieron libre, solo el primero programa; el segundo es `409` («El turno acaba de ser ocupado»).
+   - `entreturno: true` solo si el inicio es `:15` o `:45` en `CLINIC_TZ`. Acorta el turno que contiene ese instante (`acortado: true`) y crea el tramo siguiente con `entreturno: true`.
+   - No hay SMTP; el aviso es un log ([`src/notifications/log-notification.adapter.ts`](../src/notifications/log-notification.adapter.ts)).
 
 5. **F4 — Ver la agenda.** `GET /api/v1/professionals/:id/agenda?from=&to=` devuelve `200` con los turnos de ese profesional en el rango cuyo estado no es `cancelado`, ordenados por inicio. Un profesional que pide otro id recibe `403`. Si el profesional no existe, `404`.
 
 6. **F3 — Vida del turno.** `PATCH /api/v1/appointments/:id`.
    - Solo `notes`: actualiza la nota y no escribe bitácora.
    - `status`: solo transiciones permitidas ([`src/appointments/status-transitions.ts`](../src/appointments/status-transitions.ts)).
-     - `pendiente` → `confirmado` o `cancelado`.
-     - `confirmado` → `completado`, `ausente` o `cancelado`.
-     - `completado`, `ausente` y `cancelado` no salen a ningún estado (`400`).
-   - El profesional solo puede pasar a `confirmado`, `completado` o `ausente`, y solo sobre sus turnos. Otro profesional que consulta el id recibe `403`. Cancelar por PATCH no está en su lista (`403`).
-   - Secretaría o admin pueden esas transiciones y también cancelar.
-   - Cada cambio de estado anota `Cambió el estado a <estado>` o `Canceló el turno`, con el nombre de quien lo hizo, y un log.
-   - Reprogramar (`startAt` y/o `endAt`): solo secretaría o admin, y solo si el turno está `pendiente` o `confirmado`. En el turno viejo anota `Reprogramó el turno` y crea uno nuevo con `Creó el turno reprogramado`, con las mismas reglas del alta. El profesional recibe `403`. Un turno ya cerrado recibe `400`.
+     - `programado` → `en_sala_de_espera` o `cancelado`.
+     - `en_sala_de_espera` → `atendido` o `cancelado`.
+     - `atendido` y `cancelado` no salen a ningún estado (`400`). Un cancelado responde «Un turno cancelado no avanza».
+   - El profesional solo puede pasar a `atendido`, y solo sobre sus turnos. Otro profesional que consulta el id recibe `403`. Cancelar por PATCH no está en su lista (`403`).
+   - Secretaría o admin pueden esas transiciones y también cancelar. Pasar a sala de espera deja el log «Paciente en sala de espera. Avisar al consultorio.»
+   - Cada cambio de estado anota una frase (`Anunció al paciente en sala de espera`, `Marcó el turno como atendido` o `Canceló el turno`), con el nombre de quien lo hizo.
+   - Reprogramar (`startAt` y/o `endAt`): solo secretaría o admin, y solo si el turno está `programado`. En el turno viejo anota `Reprogramó el turno` y crea uno nuevo con `Creó el turno reprogramado`. El hueco viejo, si queda libre, se ofrece al primero de la lista de espera. El profesional recibe `403`. Un turno ya cerrado recibe `400`.
 
-7. **F3 — Cancelar.** `POST /api/v1/appointments/:id/cancel`, solo admin o secretaría. Mismas reglas de transición: desde `pendiente` o `confirmado` pasa a `cancelado` (`201` en Nest para POST). Desde un estado final, `400`. Anota `Canceló el turno`.
+7. **F3 — Cancelar.** `POST /api/v1/appointments/:id/cancel`, solo admin o secretaría. Desde `programado` o `en_sala_de_espera` pasa a `cancelado` (`201` en Nest para POST). Desde un estado final, `400`. Anota `Canceló el turno`. Si hay alguien en la lista de espera de ese profesional, sucursal y día, el primero queda `programado` en el hueco y la respuesta incluye `promoted`.
 
 8. **F5 — Bitácora.** `GET /api/v1/binnacle/:appointmentId` como admin o secretaría devuelve `200` y las notas de ese turno, de la más vieja a la más nueva. Cada nota tiene `authorName`, `text` y `createdAt`. El profesional recibe `403`. Un cambio que solo tocó `notes` no aparece acá.
 

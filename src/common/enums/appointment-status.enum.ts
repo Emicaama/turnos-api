@@ -1,12 +1,11 @@
 export enum AppointmentStatus {
-  Pendiente = 'pendiente',
-  Confirmado = 'confirmado',
-  Completado = 'completado',
-  Ausente = 'ausente',
+  Programado = 'programado',
+  EnSalaDeEspera = 'en_sala_de_espera',
+  Atendido = 'atendido',
   Cancelado = 'cancelado',
 }
 
 export const ACTIVE_APPOINTMENT_STATUSES = [
-  AppointmentStatus.Pendiente,
-  AppointmentStatus.Confirmado,
+  AppointmentStatus.Programado,
+  AppointmentStatus.EnSalaDeEspera,
 ] as const;
