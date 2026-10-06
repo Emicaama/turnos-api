@@ -20,6 +20,7 @@ cp .env.example .env
 docker compose up -d
 npm install
 npx prisma db push
+npx run migtration
 npm run seed
 npm run start:dev
 ```
