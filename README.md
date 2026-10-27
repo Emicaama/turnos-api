@@ -60,6 +60,7 @@ El host usa el puerto **3001** porque el 3000 suele estar ocupado. Dentro del co
 3. Listar / filtrar `GET /api/v1/appointments`
 4. Agenda `GET /api/v1/professionals/:id/agenda?from=&to=`
 5. Cancelar `POST /api/v1/appointments/:id/cancel` (queda en `GET /api/v1/binnacle/:id`)
+6. Triaje `POST /api/v1/triage` (`rojo`, `amarillo` o `verde`). La cola de la sucursal es `GET /api/v1/triage?branchId=`
 
 Reglas: un profesional no puede tener dos turnos activos (`programado`/`en_sala_de_espera`) solapados en la misma sucursal. Si el horario ya está tomado, el mismo POST deja al paciente en la lista de espera. Si dos reservas entran juntas a un hueco libre, la segunda responde 409. El horario debe caer en su disponibilidad. El profesional no crea turnos ajenos. Un entreturno (`entreturno: true`) solo puede empezar a los :15 o :45.
 

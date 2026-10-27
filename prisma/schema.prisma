@@ -20,6 +20,12 @@ enum AppointmentStatus {
   cancelado
 }
 
+enum TriageLevel {
+  rojo
+  amarillo
+  verde
+}
+
 model User {
   id             String   @id @default(uuid())
   email          String   @unique
@@ -120,4 +126,14 @@ model BinnacleRecord {
   createdAt     DateTime @default(now())
 
   @@index([appointmentId, createdAt])
+}
+
+model TriageEntry {
+  id        String      @id @default(uuid())
+  patientId String
+  branchId  String
+  level     TriageLevel
+  createdAt DateTime    @default(now())
+
+  @@index([branchId, createdAt])
 }

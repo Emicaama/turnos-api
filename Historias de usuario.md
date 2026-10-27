@@ -4,7 +4,7 @@ Transcripción de `Historias de usuario.docx`, partida en bloques para citarlos 
 
 ## Cobertura aproximada
 
-Esta API es una agenda de consultorio: secretaría reserva turnos contra la disponibilidad de un profesional, evita solapes en memoria de la petición, mueve estados simples y anota una bitácora. No hay internación, enfermería, camas, stock ni facturación.
+Esta API es una agenda de consultorio: secretaría reserva turnos contra la disponibilidad de un profesional, evita solapes en memoria de la petición, mueve estados simples y anota una bitácora. También clasifica la guardia (A5). No hay internación, signos vitales, camas, stock ni facturación.
 
 | ID | Historia | Cobertura |
 |----|----------|-----------|
@@ -12,25 +12,27 @@ Esta API es una agenda de consultorio: secretaría reserva turnos contra la disp
 | A2 | Entreturno dinámico | Sí |
 | A3 | Lista de espera por cancelación | Sí |
 | A4 | Transición del estado de atención | Sí |
-| A5 | Triaje de guardia | No |
+| A5 | Triaje de guardia | Sí |
 | B1 | Signos vitales | No |
 | B2 | Medicación prescrita | No |
 | B3 | Protocolos de atención (Builder) | No |
 | C1 | Asignación segura de cama | No |
 | C2 | Higiene y mantenimiento de camas | No |
-| C3 | Descuento de stock | No |
+| C3 | Descuento de stock | No  |
 | D1 | Cálculo de costos por cobertura | No |
 | D2 | Cargo automático por insumos | No |
 
-De 13 historias, 4 están cubiertas (A1–A4) y 9 no existen en el proyecto.
+De 13 historias, 5 están cubiertas (A1–A5) y 8 no existen en el proyecto.
 
-**A1.** `POST /api/v1/appointments` deja el turno en `programado` si el horario está libre. La reserva corre dentro de una transacción con `pg_advisory_xact_lock` sobre profesional y sucursal: si dos recepcionistas entran juntas al mismo hueco, la segunda responde `409` («El turno acaba de ser ocupado»).
+**A1.** `POST /api/v1/appointments` deja el turno en `programado` si el horario está libre. La reserva corre en una transacción serializable: si dos recepcionistas entran juntas al mismo hueco, la que pierde responde `409` («El turno acaba de ser ocupado»).
 
 **A2.** El mismo POST con `entreturno: true` solo si el inicio cae en `:15` o `:45` (hora de `CLINIC_TZ`). Acorta el turno que contiene ese instante y etiqueta `acortado` / `entreturno`.
 
 **A3.** Si ese horario ya está ocupado, el mismo POST no abre otro endpoint: anota al paciente en la lista de espera de ese profesional, sucursal y día. Al cancelar (o reprogramar) el hueco, el primero de la cola queda `programado` ahí y el log pide avisar al paciente.
 
 **A4.** Estados: `programado` → `en_sala_de_espera` → `atendido`, y `cancelado` desde los dos primeros. No hay `confirmado`. Un `cancelado` no pasa a `atendido` (`400`). Entrar a sala de espera deja un aviso al consultorio en el log.
+
+**A5.** `POST /api/v1/triage` clasifica a un paciente sin turno en `rojo`, `amarillo` o `verde`. No crea un turno. `GET /api/v1/triage?branchId=` ordena la cola de esa sucursal: el rojo va primero y, a igual nivel, manda la llegada. El rojo deja un log `[triage]` para la guardia. No hay rol enfermero: lo carga secretaría o admin.
 
 ---
 
@@ -58,7 +60,7 @@ De 13 historias, 4 están cubiertas (A1–A4) y 9 no existen en el proyecto.
 - Entonces el sistema debe procesar exitosamente solo la primera petición que ingrese a la base de datos.
 - Y debe rechazar la segunda petición con un mensaje claro de que el turno acaba de ser ocupado.
 
-**Cobertura: sí.** El alta queda `programado`. Dos reservas simultáneas del mismo hueco se serializan con un lock de Postgres; la que pierde responde `409`.
+**Cobertura: sí.** El alta queda `programado`. Dos reservas simultáneas del mismo hueco corren en una transacción serializable; la que pierde responde `409`.
 
 ### A2 — Inserción de entreturno dinámico
 
@@ -134,7 +136,7 @@ Estados pedidos:
 - Entonces el sistema lo pone primero en la cola y corre a los de menor riesgo.
 - Y alerta en los monitores de los médicos de guardia.
 
-**Cobertura: no.** No hay guardia, triaje ni cola de urgencias.
+**Cobertura: sí.** `POST /api/v1/triage` con `level: "rojo"` (riesgo vital), `amarillo` o `verde`. La cola de la sucursal sale en `GET /api/v1/triage?branchId=`, con el rojo delante de los riesgos menores. El código rojo avisa por log a la guardia. No hay rol enfermero: clasifican secretaría o admin.
 
 ---
 

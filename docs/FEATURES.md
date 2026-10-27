@@ -2,7 +2,7 @@
 
 ## Resumen
 
-Capacidades de la API alineadas a F1–F5: identidad, catálogo clínico, control de turnos (estados, solape, disponibilidad), agenda y bitácora. Las notificaciones son un puerto que solo registra en log.
+Capacidades de la API alineadas a F1–F5: identidad, catálogo clínico, control de turnos (estados, solape, disponibilidad), agenda y bitácora. También el triaje de guardia (A5). Las notificaciones son un puerto que solo registra en log.
 
 ## Capacidades por flujo
 
@@ -24,15 +24,15 @@ Capacidades de la API alineadas a F1–F5: identidad, catálogo clínico, contro
 ### F3 — Generar y controlar turnos
 
 - **Alta programada o lista de espera** — el mismo `POST /appointments`; si el hueco está libre queda `programado`, si ya está tomado encola — evidencia: [`src/appointments/appointments.service.ts`](../src/appointments/appointments.service.ts)
-- **Bloqueo de agenda** — `pg_advisory_xact_lock` por profesional y sucursal; la reserva que pierde la carrera responde `409` — evidencia: [`src/appointments/turno/agenda.ts`](../src/appointments/turno/agenda.ts)
-- **Entreturno** — `entreturno: true`, solo inicio `:15` o `:45`; acorta el turno que cubre ese instante — evidencia: [`src/appointments/entreturno/entreturno.ts`](../src/appointments/entreturno/entreturno.ts)
+- **Reserva concurrente** — la escritura corre en una transacción serializable; si Postgres aborta la carrera, responde `409` — evidencia: [`src/appointments/utils.ts`](../src/appointments/utils.ts) (`inTransaction`, `takenJustNow`, `chooseSlot`)
+- **Entreturno** — `entreturno: true`, solo inicio `:15` o `:45`; acorta el turno que cubre ese instante — evidencia: [`src/appointments/appointments.service.ts`](../src/appointments/appointments.service.ts), [`src/appointments/utils.ts`](../src/appointments/utils.ts) (`isEntreturnoStart`)
 - **Validación de catálogo** — paciente/profesional/sucursal existentes; profesional en esa sucursal si tiene `branchIds` — evidencia: [`src/appointments/appointments.service.ts`](../src/appointments/appointments.service.ts) (`assertCatalog`)
 - **Validación de disponibilidad** — slot dentro de franja en `CLINIC_TZ` — evidencia: [`src/availability/time-in-zone.ts`](../src/availability/time-in-zone.ts), test [`src/availability/time-in-zone.spec.ts`](../src/availability/time-in-zone.spec.ts)
 - **Anti-solapamiento** — turnos activos (`programado`/`en_sala_de_espera`) del mismo profesional y sucursal — evidencia: [`src/appointments/appointments.service.ts`](../src/appointments/appointments.service.ts)
-- **Máquina de estados** — `programado` → `en_sala_de_espera` → `atendido`, o `cancelado`; reprogramar solo `programado` — evidencia: [`src/appointments/status/status-transitions.ts`](../src/appointments/status/status-transitions.ts)
+- **Máquina de estados** — `programado` → `en_sala_de_espera` → `atendido`, o `cancelado`; reprogramar solo `programado` — evidencia: [`src/appointments/utils.ts`](../src/appointments/utils.ts) (`canTransition`, `canReschedule`)
 - **Reprogramar** — cancela y crea turno nuevo; el hueco viejo puede promover la lista de espera — evidencia: `reschedule` en [`src/appointments/appointments.service.ts`](../src/appointments/appointments.service.ts)
 - **Cancelar** — `POST .../cancel`; el profesional no cancela; promueve al primero de la lista de ese día — evidencia: mismo controller/service
-- **Listado filtrado** — status, profesional, sucursal, rango; profesional acotado a los suyos — evidencia: [`src/appointments/turno/dto/list-appointments-query.dto.ts`](../src/appointments/turno/dto/list-appointments-query.dto.ts)
+- **Listado filtrado** — status, profesional, sucursal, rango; profesional acotado a los suyos — evidencia: [`src/appointments/dto/list-appointments-query.dto.ts`](../src/appointments/dto/list-appointments-query.dto.ts)
 - **Notificación por log** — alta, cancelación, reprogramación, sala de espera y lista de espera — evidencia: [`src/notifications/log-notification.adapter.ts`](../src/notifications/log-notification.adapter.ts)
 
 ### F4 — Consultar agenda
@@ -43,6 +43,12 @@ Capacidades de la API alineadas a F1–F5: identidad, catálogo clínico, contro
 
 - **Bitácora del turno** — `authorName` y una frase (`text`) — evidencia: [`src/binnacle/binnacle.service.ts`](../src/binnacle/binnacle.service.ts), modelo `BinnacleRecord` en [`prisma/schema.prisma`](../prisma/schema.prisma)
 - **Consulta restringida** — admin/secretaría, orden cronológico — evidencia: [`src/binnacle/binnacle.controller.ts`](../src/binnacle/binnacle.controller.ts)
+
+### A5 — Triaje de guardia
+
+- **Clasificar** — `POST /triage` con paciente, sucursal y nivel `rojo` (riesgo vital), `amarillo` o `verde`. No abre un turno — evidencia: [`src/triage/triage.service.ts`](../src/triage/triage.service.ts)
+- **Cola por riesgo** — `GET /triage?branchId=` pone el rojo primero y, a igual nivel, respeta la llegada — evidencia: [`src/triage/triage.ts`](../src/triage/triage.ts) (`compareTriage`)
+- **Aviso a guardia** — solo el rojo escribe `[triage]` en el log — evidencia: [`src/triage/triage.ts`](../src/triage/triage.ts) (`triageAlert`), [`src/notifications/log-notification.adapter.ts`](../src/notifications/log-notification.adapter.ts)
 
 ## Capacidades transversales
 

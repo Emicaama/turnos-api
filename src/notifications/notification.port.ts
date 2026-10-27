@@ -14,6 +14,15 @@ export type AppointmentNotification = {
   message: string;
 };
 
+export type TriageNotification = {
+  type: 'triage';
+  patientId: string;
+  branchId: string;
+  message: string;
+};
+
+export type NotificationEvent = AppointmentNotification | TriageNotification;
+
 export interface NotificationPort {
-  notify(event: AppointmentNotification): Promise<void>;
+  notify(event: NotificationEvent): Promise<void>;
 }

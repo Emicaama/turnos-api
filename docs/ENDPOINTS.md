@@ -520,7 +520,7 @@ Errores transversales (guards / ValidationPipe): `401` sin Bearer válido; `403`
 | Body | Sin body |
 | Respuesta OK | `200` array de Appointment |
 | Errores | `400` query inválida; `403` agenda ajena; `404` profesional inexistente; `401` |
-| Evidencia | [`src/appointments/professionals-agenda.controller.ts`](../src/appointments/professionals-agenda.controller.ts), [`src/appointments/turno/dto/agenda-query.dto.ts`](../src/appointments/turno/dto/agenda-query.dto.ts) |
+| Evidencia | [`src/appointments/professionals-agenda.controller.ts`](../src/appointments/professionals-agenda.controller.ts), [`src/appointments/dto/agenda-query.dto.ts`](../src/appointments/dto/agenda-query.dto.ts) |
 | Flujos | F4 |
 
 ---
@@ -594,7 +594,7 @@ Errores transversales (guards / ValidationPipe): `401` sin Bearer válido; `403`
 
 ### `POST /api/v1/appointments`
 
-**Qué hace:** Si el horario está libre, crea un turno `programado`. Si ya hay un turno activo ahí, anota al paciente en la lista de espera del profesional, la sucursal y el día (mismo endpoint). Con `entreturno: true` acorta el turno que cubre un inicio `:15` o `:45`. La escritura va dentro de un lock de Postgres por profesional y sucursal.
+**Qué hace:** Si el horario está libre, crea un turno `programado`. Si ya hay un turno activo ahí, anota al paciente en la lista de espera del profesional, la sucursal y el día (mismo endpoint). Con `entreturno: true` acorta el turno que cubre un inicio `:15` o `:45`. La escritura corre en una transacción serializable. Si dos altas llegan juntas a un hueco libre, la que pierde responde `409`.
 
 | | |
 |--|--|
@@ -661,7 +661,7 @@ Si el horario ya estaba ocupado, `result` es `lista_de_espera` y el cuerpo trae 
 | Body | Sin body |
 | Respuesta OK | `200` array Appointment |
 | Errores | `400` query inválida; `403` profesional sin `professionalId` en token; `401` |
-| Evidencia | [`src/appointments/turno/dto/list-appointments-query.dto.ts`](../src/appointments/turno/dto/list-appointments-query.dto.ts) |
+| Evidencia | [`src/appointments/dto/list-appointments-query.dto.ts`](../src/appointments/dto/list-appointments-query.dto.ts) |
 | Flujos | F3 |
 
 ---
@@ -695,7 +695,7 @@ Si el horario ya estaba ocupado, `result` es `lista_de_espera` y el cuerpo trae 
 | Body | JSON; todos los campos opcionales |
 | Respuesta OK | `200` Appointment (el nuevo si reprogramó) |
 | Errores | `400` transición o reprogramación inválida / fuera de disponibilidad; `403`; `404`; `409` solape al recrear; `401` |
-| Evidencia | [`src/appointments/turno/dto/update-appointment.dto.ts`](../src/appointments/turno/dto/update-appointment.dto.ts), [`src/appointments/status/status-transitions.ts`](../src/appointments/status/status-transitions.ts) |
+| Evidencia | [`src/appointments/dto/update-appointment.dto.ts`](../src/appointments/dto/update-appointment.dto.ts), [`src/appointments/utils.ts`](../src/appointments/utils.ts) |
 | Flujos | F3 |
 
 **Body (cambio de estado):**
@@ -764,3 +764,49 @@ Transiciones: `programado` → `en_sala_de_espera` | `cancelado`; `en_sala_de_es
 ```
 
 Cada nota es una frase: `Creó el turno`, `Creó un entreturno`, `Se acortó por un entreturno`, `Anunció al paciente en sala de espera`, `Marcó el turno como atendido`, `Canceló el turno`, `El horario pasó al primero de la lista de espera`, `Asignó el horario liberado desde la lista de espera`, `Reprogramó el turno` o `Creó el turno reprogramado`.
+
+---
+
+### `POST /api/v1/triage`
+
+**Qué hace:** Clasifica a un paciente que llega sin turno. `rojo` es riesgo vital y queda delante en la cola de la sucursal. `amarillo` y `verde` entran detrás. El rojo deja un log para la guardia. No crea un turno.
+
+| | |
+|--|--|
+| Auth | Bearer; roles `admin` o `secretaria` |
+| Path params | Sin path params |
+| Query | Sin query |
+| Body | JSON |
+| Respuesta OK | `201` `TriageEntry` |
+| Errores | `400` nivel inválido; `404` paciente o sucursal; `401`; `403` |
+| Evidencia | [`src/triage/triage.controller.ts`](../src/triage/triage.controller.ts), [`src/triage/triage.ts`](../src/triage/triage.ts) |
+| Flujos | A5 |
+
+**Body:**
+
+```json
+{
+  "patientId": "66b0000000000000000000aa",
+  "branchId": "66b000000000000000000010",
+  "level": "rojo"
+}
+```
+
+`level`: `rojo`, `amarillo` o `verde`.
+
+---
+
+### `GET /api/v1/triage`
+
+**Qué hace:** Cola de guardia de una sucursal. Orden: `rojo`, después `amarillo`, después `verde`. A igual nivel, el que llegó antes va primero.
+
+| | |
+|--|--|
+| Auth | Bearer; autenticado |
+| Path params | Sin path params |
+| Query | `branchId` (UUID, obligatorio) |
+| Body | Sin body |
+| Respuesta OK | `200` array de `TriageEntry` |
+| Errores | `400` query inválida; `404` sucursal; `401` |
+| Evidencia | [`src/triage/dto/list-triage-query.dto.ts`](../src/triage/dto/list-triage-query.dto.ts), [`src/triage/triage.ts`](../src/triage/triage.ts) |
+| Flujos | A5 |

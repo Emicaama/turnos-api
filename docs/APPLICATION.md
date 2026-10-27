@@ -28,7 +28,7 @@ Centralizar la agenda clínica para que un intermediario (secretaría) asigne ho
 |----|-------|-------|---------|-----------|-----------|
 | F1 | Autenticarse | Usuario con cuenta (`admin`, `secretaria`, `profesional`) | `POST /api/v1/auth/login` | JWT `accessToken`, o `401` si el email o la clave no coinciden | [`src/auth/auth.controller.ts`](../src/auth/auth.controller.ts), [`src/auth/auth.service.ts`](../src/auth/auth.service.ts) |
 | F2 | Configurar catálogo clínico | Admin (sucursales, especialidades, profesionales, disponibilidad, usuarios); secretaría o admin (pacientes) | CRUD bajo `/api/v1/branches`, `/specialties`, `/professionals`, `/availability`, `/patients`, `/users` | Catálogo listo para agendar, o `403` si el rol no escribe ese recurso | controllers en `src/branches/`, `src/specialties/`, `src/professionals/`, `src/availability/`, `src/patients/`, `src/users/` |
-| F3 | Generar y controlar turnos | Secretaría o admin (alta, reprogramación y cancelación); profesional (cambio de estado propio) | `POST/GET/PATCH /api/v1/appointments`, `POST .../cancel` | Turno en un estado válido, o `400` / `403` / `404` / `409` | [`src/appointments/appointments.controller.ts`](../src/appointments/appointments.controller.ts), [`src/appointments/appointments.service.ts`](../src/appointments/appointments.service.ts), [`src/appointments/status/status-transitions.ts`](../src/appointments/status/status-transitions.ts) |
+| F3 | Generar y controlar turnos | Secretaría o admin (alta, reprogramación y cancelación); profesional (cambio de estado propio) | `POST/GET/PATCH /api/v1/appointments`, `POST .../cancel` | Turno en un estado válido, o `400` / `403` / `404` / `409` | [`src/appointments/appointments.controller.ts`](../src/appointments/appointments.controller.ts), [`src/appointments/appointments.service.ts`](../src/appointments/appointments.service.ts), [`src/appointments/utils.ts`](../src/appointments/utils.ts) |
 | F4 | Consultar agenda | Secretaría, admin o el profesional dueño | `GET /api/v1/professionals/:id/agenda?from=&to=` | Turnos no cancelados en el rango, o `403` si un profesional pide la agenda de otro | [`src/appointments/professionals-agenda.controller.ts`](../src/appointments/professionals-agenda.controller.ts) |
 | F5 | Leer la bitácora de un turno | Admin o secretaría | `GET /api/v1/binnacle/:appointmentId` | Notas en orden cronológico (`Creó el turno`, `Cambió el estado a …`, `Canceló el turno`, `Reprogramó el turno`), o `403` si el rol es profesional | [`src/binnacle/binnacle.controller.ts`](../src/binnacle/binnacle.controller.ts) |
 
@@ -65,7 +65,7 @@ El caso integrado es el de la secretaría, que es el actor para el que existe la
    - Paciente, profesional y sucursal tienen que existir (`404` si falta uno).
    - Si el profesional tiene `branchIds` y la sucursal no está, `400` («no atiende en esa sucursal»).
    - El intervalo, interpretado en `CLINIC_TZ` (example: `America/Argentina/Buenos_Aires`), tiene que caer el mismo día dentro de una franja de ese profesional y sucursal (`400` si no).
-   - El alta corre con un lock de Postgres por profesional y sucursal. Si el hueco sigue libre: `201`, `result: "programado"`, estado `programado`, nota `Creó el turno` y un log `[created]`.
+   - El alta corre en una transacción serializable. Si el hueco está libre: `201`, `result: "programado"`, estado `programado`, nota `Creó el turno` y un log `[created]`.
    - Si ese horario ya estaba ocupado: `201`, `result: "lista_de_espera"` (mismo endpoint, sin turno nuevo).
    - Si dos pedidos entran juntos a un hueco que ambos vieron libre, solo el primero programa; el segundo es `409` («El turno acaba de ser ocupado»).
    - `entreturno: true` solo si el inicio es `:15` o `:45` en `CLINIC_TZ`. Acorta el turno que contiene ese instante (`acortado: true`) y crea el tramo siguiente con `entreturno: true`.
@@ -75,7 +75,7 @@ El caso integrado es el de la secretaría, que es el actor para el que existe la
 
 6. **F3 — Vida del turno.** `PATCH /api/v1/appointments/:id`.
    - Solo `notes`: actualiza la nota y no escribe bitácora.
-   - `status`: solo transiciones permitidas ([`src/appointments/status/status-transitions.ts`](../src/appointments/status/status-transitions.ts)).
+   - `status`: solo transiciones permitidas ([`src/appointments/utils.ts`](../src/appointments/utils.ts)).
      - `programado` → `en_sala_de_espera` o `cancelado`.
      - `en_sala_de_espera` → `atendido` o `cancelado`.
      - `atendido` y `cancelado` no salen a ningún estado (`400`). Un cancelado responde «Un turno cancelado no avanza».
@@ -98,6 +98,7 @@ El listado `GET /api/v1/appointments` acompaña F3 y F4: la secretaría filtra p
 | JWT + `RolesGuard` | F1–F5 | Autenticación y autorización | [`src/common/guards/`](../src/common/guards/), [`src/app.module.ts`](../src/app.module.ts) |
 | Prisma / Postgres | F2–F5 | Persistencia; ids UUID | [`prisma/schema.prisma`](../prisma/schema.prisma), [`src/prisma/`](../src/prisma/) |
 | Módulo turnos | F3, F4 | Estados, solape, disponibilidad, reprogramación | [`src/appointments/`](../src/appointments/) |
+| Triaje de guardia | A5 | Cola por riesgo en una sucursal; el rojo avisa por log | [`src/triage/`](../src/triage/) |
 | Notificaciones (log) | F3 | Puerto sin SMTP | [`src/notifications/`](../src/notifications/) |
 | Seed | F1–F3 | Secretaría, dos médicos y tres turnos de demo | [`src/seed/seed.service.ts`](../src/seed/seed.service.ts) |
 | Docker Postgres + API | persistencia y proceso HTTP | Motor y servidor con reinicio | [`docker-compose.yml`](../docker-compose.yml), [`Dockerfile`](../Dockerfile) |

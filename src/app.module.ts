@@ -16,6 +16,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { ProfessionalsModule } from './professionals/professionals.module';
 import { SeedModule } from './seed/seed.module';
 import { SpecialtiesModule } from './specialties/specialties.module';
+import { TriageModule } from './triage/triage.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -37,6 +38,7 @@ import { UsersModule } from './users/users.module';
     BinnacleModule,
     NotificationsModule,
     AppointmentsModule,
+    TriageModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
