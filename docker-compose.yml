@@ -29,6 +29,13 @@ services:
       JWT_SECRET: change-me-use-at-least-16-chars
       JWT_EXPIRES_IN: 8h
       CLINIC_TZ: America/Argentina/Buenos_Aires
+    volumes:
+      - .:/app
+      - api_node_modules:/app/node_modules
+    command:
+      - sh
+      - -c
+      - npm run build && PREPARE_STATUS_DIRECT=1 node scripts/prepare-appointment-status.cjs && npx prisma db push --skip-generate --accept-data-loss && node dist/seed.js && npm run start:dev
     depends_on:
       postgres:
         condition: service_healthy
@@ -43,7 +50,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 40s
+      start_period: 120s
 
   web:
     build:
@@ -72,3 +79,4 @@ services:
 
 volumes:
   postgres_data:
+  api_node_modules:
