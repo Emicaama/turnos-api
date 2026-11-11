@@ -2,7 +2,7 @@
 
 ## En una frase
 
-API REST para que una secretaría de clínica genere y controle turnos de pacientes con profesionales, con roles JWT, disponibilidad, anti-solapamiento y bitácora.
+API REST para que una secretaría de clínica genere y controle turnos de pacientes con profesionales, con roles JWT, disponibilidad, anti-solapamiento, bitácora, triaje de guardia, signos y medicación, internación en camas con protocolo, stock de insumos y facturación por cobertura.
 
 ## Tipo de artefacto
 
@@ -12,9 +12,10 @@ No hay UI. Swagger queda en `/docs` (fuera del prefijo `api/v1`). Postgres y, si
 
 ## Para quién
 
-- **Secretaría**: crea, reprograma y cancela turnos; mantiene pacientes.
-- **Admin**: configura sucursales, especialidades, profesionales, disponibilidad y usuarios. También opera turnos.
-- **Profesional**: consulta su agenda y marca `atendido` un turno propio que ya está en sala de espera. No crea, no cancela y no reprograma.
+- **Secretaría**: crea, reprograma y cancela turnos; mantiene pacientes y su cobertura; clasifica la guardia; interna y da de alta; factura consultas y lee la cuenta de la estadía.
+- **Enfermero**: clasifica la guardia, carga signos y dosis, y confirma la limpieza o el bloqueo de una cama.
+- **Admin**: configura sucursales, especialidades, profesionales, disponibilidad, usuarios, camas e insumos. También puede hacer todo lo anterior.
+- **Profesional**: consulta su agenda, lee la cola de guardia, indica medicación, lee las notas `signos` y `medicacion` de un turno propio y marca `atendido` un turno propio que ya está en sala de espera. No crea, no cancela, no reprograma, no clasifica y no carga signos ni dosis.
 
 El paciente no entra a la API. Queda como registro que carga la secretaría o el admin.
 
@@ -28,17 +29,21 @@ Centralizar la agenda clínica para que un intermediario (secretaría) asigne ho
 |----|-------|-------|---------|-----------|-----------|
 | F1 | Autenticarse | Usuario con cuenta (`admin`, `secretaria`, `profesional`) | `POST /api/v1/auth/login` | JWT `accessToken`, o `401` si el email o la clave no coinciden | [`src/auth/auth.controller.ts`](../src/auth/auth.controller.ts), [`src/auth/auth.service.ts`](../src/auth/auth.service.ts) |
 | F2 | Configurar catálogo clínico | Admin (sucursales, especialidades, profesionales, disponibilidad, usuarios); secretaría o admin (pacientes) | CRUD bajo `/api/v1/branches`, `/specialties`, `/professionals`, `/availability`, `/patients`, `/users` | Catálogo listo para agendar, o `403` si el rol no escribe ese recurso | controllers en `src/branches/`, `src/specialties/`, `src/professionals/`, `src/availability/`, `src/patients/`, `src/users/` |
-| F3 | Generar y controlar turnos | Secretaría o admin (alta, reprogramación y cancelación); profesional (cambio de estado propio) | `POST/GET/PATCH /api/v1/appointments`, `POST .../cancel` | Turno en un estado válido, o `400` / `403` / `404` / `409` | [`src/appointments/appointments.controller.ts`](../src/appointments/appointments.controller.ts), [`src/appointments/appointments.service.ts`](../src/appointments/appointments.service.ts), [`src/appointments/utils.ts`](../src/appointments/utils.ts) |
+| F3 | Generar y controlar turnos | Secretaría o admin (alta, reprogramación y cancelación); profesional (cambio de estado propio) | `POST/GET/PATCH /api/v1/appointments`, `POST .../cancel` | Turno en un estado válido, o `400` / `403` / `404` / `409` | [`src/appointments/appointments.controller.ts`](../src/appointments/appointments.controller.ts), [`src/appointments/appointments.service.ts`](../src/appointments/appointments.service.ts), [`src/appointments/appointment-rules.ts`](../src/appointments/appointment-rules.ts) |
 | F4 | Consultar agenda | Secretaría, admin o el profesional dueño | `GET /api/v1/professionals/:id/agenda?from=&to=` | Turnos no cancelados en el rango, o `403` si un profesional pide la agenda de otro | [`src/appointments/professionals-agenda.controller.ts`](../src/appointments/professionals-agenda.controller.ts) |
-| F5 | Leer la bitácora de un turno | Admin o secretaría | `GET /api/v1/binnacle/:appointmentId` | Notas en orden cronológico (`Creó el turno`, `Cambió el estado a …`, `Canceló el turno`, `Reprogramó el turno`), o `403` si el rol es profesional | [`src/binnacle/binnacle.controller.ts`](../src/binnacle/binnacle.controller.ts) |
+| F5 | Leer la bitácora de un turno | Admin o secretaría (todo); profesional solo `signos` y `medicacion` de un turno propio | `GET /api/v1/binnacle/:appointmentId?kind=` | Notas en orden cronológico. Cada una tiene `kind`: `agenda`, `signos` o `medicacion` | [`src/binnacle/binnacle.controller.ts`](../src/binnacle/binnacle.controller.ts) |
+| A5 | Triaje de guardia | Enfermero, secretaría o admin clasifican; cualquier autenticado lee la cola | `POST /api/v1/triage`, `GET /api/v1/triage?branchId=` | El paciente entra a la cola de la sucursal (`rojo` primero). El rojo avisa por log. No crea un turno | [`src/triage/triage.controller.ts`](../src/triage/triage.controller.ts), [`src/triage/triage.ts`](../src/triage/triage.ts) |
+| B1–B2 | Signos y medicación | Enfermero o admin cargan; profesional o admin indican | `POST .../vitals`, `POST /patients/:id/prescriptions`, `POST .../doses` | Signos con aviso de fiebre; dosis en ventana de ±30 minutos que descuenta stock | [`src/nursing/`](../src/nursing/) |
+| B3, C1, C2 | Internación | Secretaría o admin internan y dan alta; enfermero o admin liberan la cama | `POST /api/v1/admissions`, `POST .../discharge`, `PATCH /api/v1/beds/:id/status` | Cama `ocupada` sin doble asignación, protocolo según motivo, alta a `en_limpieza` | [`src/admissions/`](../src/admissions/), [`src/beds/`](../src/beds/) |
+| C3, D1, D2 | Stock y facturación | Admin carga insumos; secretaría o admin facturan | `/api/v1/supplies`, `POST /appointments/:id/charges`, `GET /admissions/:id/account` | Stock atómico, reparto por cobertura, insumos cargados a la estadía | [`src/supplies/`](../src/supplies/), [`src/billing/`](../src/billing/) |
 
 ## Cómo encajan los flujos
 
 Orden típico: **F1** → **F2** → **F3** → **F4** y **F5**.
 
-F1 es obligatorio en toda ruta salvo el login y el health. F3 exige paciente, profesional, sucursal y una franja de disponibilidad (F2). F4 lee lo que dejó F3, sin los cancelados. F5 lee las frases que F3 anota al crear, cambiar estado, reprogramar o cancelar.
+F1 es obligatorio en toda ruta salvo el login y el health. F3 exige paciente, profesional, sucursal y una franja de disponibilidad (F2). F4 lee lo que dejó F3, sin los cancelados. F5 lee las frases que F3 anota al crear, cambiar estado, reprogramar o cancelar, y también las de signos y medicación. A5 usa el paciente y la sucursal de F2 y no depende de un turno: el rojo queda primero en la cola de esa sucursal. B1 y B2 cuelgan de un turno ya creado. La internación (C1) usa un paciente y una cama libre, y genera el protocolo (B3). Cada dosis de B2 descuenta stock (C3) y, si el paciente está internado, suma una línea a la cuenta de la estadía (D2). La facturación de la consulta (D1) usa un turno y la cobertura del paciente.
 
-En local, el seed ([`src/seed.ts`](../src/seed.ts), [`src/seed/seed.service.ts`](../src/seed/seed.service.ts)) deja hecho un F2 mínimo y tres turnos de F3: secretaría, Ana Pérez, Luis Gómez, sede central, especialidad Clínica médica, dos pacientes y disponibilidad de lunes a viernes 09:00–13:00. Si `secretaria@turnos.local` ya existe, no vuelve a insertar. Con eso se puede entrar directo a F1 y seguir el turno, sin crear el catálogo a mano. `POST /api/v1/users` sigue exigiendo JWT de admin.
+En local, el seed ([`src/seed.ts`](../src/seed.ts), [`src/seed/seed.service.ts`](../src/seed/seed.service.ts)) deja la secretaría, cinco médicos (Ana Pérez, Luis Gómez, Carla Ruiz, Diego Fernández y Elena Soto), la sede central, Clínica médica, Cardiología y Pediatría, 20 pacientes con un turno cada uno del 9 al 13 de noviembre de 2026 y disponibilidad de lunes a viernes 09:00–13:00. Si `secretaria@turnos.local` ya existe, no vuelve a insertar. Con eso se puede entrar directo a F1 y seguir el turno, sin crear el catálogo a mano. `POST /api/v1/users` sigue exigiendo JWT de admin.
 
 `GET /api/v1/health` ([`src/health/health.controller.ts`](../src/health/health.controller.ts)) no es un flujo de negocio: responde `{ "status": "ok", "postgres": true }` si Postgres acepta `SELECT 1`.
 
@@ -75,7 +80,7 @@ El caso integrado es el de la secretaría, que es el actor para el que existe la
 
 6. **F3 — Vida del turno.** `PATCH /api/v1/appointments/:id`.
    - Solo `notes`: actualiza la nota y no escribe bitácora.
-   - `status`: solo transiciones permitidas ([`src/appointments/utils.ts`](../src/appointments/utils.ts)).
+   - `status`: solo transiciones permitidas ([`src/appointments/appointment-rules.ts`](../src/appointments/appointment-rules.ts)).
      - `programado` → `en_sala_de_espera` o `cancelado`.
      - `en_sala_de_espera` → `atendido` o `cancelado`.
      - `atendido` y `cancelado` no salen a ningún estado (`400`). Un cancelado responde «Un turno cancelado no avanza».
@@ -86,9 +91,11 @@ El caso integrado es el de la secretaría, que es el actor para el que existe la
 
 7. **F3 — Cancelar.** `POST /api/v1/appointments/:id/cancel`, solo admin o secretaría. Desde `programado` o `en_sala_de_espera` pasa a `cancelado` (`201` en Nest para POST). Desde un estado final, `400`. Anota `Canceló el turno`. Si hay alguien en la lista de espera de ese profesional, sucursal y día, el primero queda `programado` en el hueco y la respuesta incluye `promoted`.
 
-8. **F5 — Bitácora.** `GET /api/v1/binnacle/:appointmentId` como admin o secretaría devuelve `200` y las notas de ese turno, de la más vieja a la más nueva. Cada nota tiene `authorName`, `text` y `createdAt`. El profesional recibe `403`. Un cambio que solo tocó `notes` no aparece acá.
+8. **F5 — Bitácora.** `GET /api/v1/binnacle/:appointmentId` como admin o secretaría devuelve `200` y las notas de ese turno, de la más vieja a la más nueva. Cada nota tiene `authorName`, `text`, `kind` y `createdAt`. `kind` puede ser `agenda`, `signos` o `medicacion`. El profesional recibe `403` si no filtra, o si pide `agenda`. Con `kind=signos` o `kind=medicacion` lee esas notas de un turno propio. Un cambio que solo tocó `notes` del turno no aparece acá.
 
 El listado `GET /api/v1/appointments` acompaña F3 y F4: la secretaría filtra por estado, profesional, sucursal y rango; el profesional solo ve los suyos. Si su usuario no tiene `professionalId`, `403`.
+
+9. **A5 — Guardia.** `POST /api/v1/triage` con `patientId`, `branchId` y `level` (`rojo`, `amarillo` o `verde`). Solo admin, secretaría o enfermero. Responde `201` con el `TriageEntry` y no crea un turno. `rojo` escribe en el log «Riesgo vital (código rojo). Avisar a los médicos de guardia.» `GET /api/v1/triage?branchId=` devuelve la cola: `rojo`, después `amarillo`, después `verde`; a igual nivel, el que llegó antes. Paciente o sucursal inexistente → `404`. El profesional que clasifica recibe `403`.
 
 ## Piezas principales
 
@@ -99,7 +106,11 @@ El listado `GET /api/v1/appointments` acompaña F3 y F4: la secretaría filtra p
 | Prisma / Postgres | F2–F5 | Persistencia; ids UUID | [`prisma/schema.prisma`](../prisma/schema.prisma), [`src/prisma/`](../src/prisma/) |
 | Módulo turnos | F3, F4 | Estados, solape, disponibilidad, reprogramación | [`src/appointments/`](../src/appointments/) |
 | Triaje de guardia | A5 | Cola por riesgo en una sucursal; el rojo avisa por log | [`src/triage/`](../src/triage/) |
-| Notificaciones (log) | F3 | Puerto sin SMTP | [`src/notifications/`](../src/notifications/) |
-| Seed | F1–F3 | Secretaría, dos médicos y tres turnos de demo | [`src/seed/seed.service.ts`](../src/seed/seed.service.ts) |
+| Signos y medicación | B1, B2 | Medición y dosis sobre un turno; la nota lleva `kind`; la dosis descuenta stock y carga la estadía | [`src/nursing/`](../src/nursing/) |
+| Internación y camas | B3, C1, C2 | Cama sin doble asignación, protocolo por motivo, alta a limpieza | [`src/admissions/`](../src/admissions/), [`src/beds/`](../src/beds/) |
+| Insumos | C3 | Stock global con descuento atómico al medicar | [`src/supplies/`](../src/supplies/) |
+| Facturación | D1, D2 | Reparto por cobertura y cuenta de la estadía | [`src/billing/`](../src/billing/) |
+| Notificaciones (log) | F3, A5, B1 | Puerto sin SMTP. El rojo de guardia y la fiebre salen como `[guardia]` | [`src/notifications/`](../src/notifications/) |
+| Seed | F1–F3, C1–C3, D1–D2 | Secretaría, enfermero, cinco médicos, 20 turnos, camas 101/204/205/310, cargos por cobertura, cuenta de internación, Ibuprofeno 400 mg (50 u.) | [`src/seed/seed.service.ts`](../src/seed/seed.service.ts) |
 | Docker Postgres + API | persistencia y proceso HTTP | Motor y servidor con reinicio | [`docker-compose.yml`](../docker-compose.yml), [`Dockerfile`](../Dockerfile) |
 | Swagger | — | Exploración interactiva | [`src/setup-app.ts`](../src/setup-app.ts) (`/docs`) |

@@ -1,5 +1,15 @@
+import { AvailabilityModality, AvailabilityStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { IsInt, IsString, IsUUID, Matches, Max, Min } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Matches,
+  Max,
+  Min,
+} from 'class-validator';
 
 export class CreateAvailabilityDto {
   @IsUUID()
@@ -26,4 +36,16 @@ export class CreateAvailabilityDto {
   @IsInt()
   @Min(5)
   slotMinutes: number;
+
+  @IsOptional()
+  @IsString()
+  room?: string;
+
+  @IsOptional()
+  @IsEnum(AvailabilityModality)
+  modality?: AvailabilityModality;
+
+  @IsOptional()
+  @IsEnum(AvailabilityStatus)
+  status?: AvailabilityStatus;
 }

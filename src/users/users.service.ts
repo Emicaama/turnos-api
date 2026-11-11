@@ -8,6 +8,7 @@ import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { isUniqueConstraintError } from '../prisma/prisma.errors';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 const publicUser = { omit: { passwordHash: true } } as const;
 
@@ -25,14 +26,30 @@ export class UsersService {
           name: dto.name,
           role: dto.role,
           professionalId: dto.professionalId,
+          active: dto.active,
         },
         ...publicUser,
       });
     } catch (error) {
-      if (isUniqueConstraintError(error)) {
-        throw new ConflictException('El email ya está registrado');
-      }
-      throw error;
+      throw mapDuplicateEmail(error);
+    }
+  }
+
+  async update(id: string, dto: UpdateUserDto) {
+    await this.findById(id);
+    const { password, email, ...rest } = dto;
+    try {
+      return await this.prisma.user.update({
+        where: { id },
+        data: {
+          ...rest,
+          email: email?.toLowerCase(),
+          passwordHash: password ? await bcrypt.hash(password, 10) : undefined,
+        },
+        ...publicUser,
+      });
+    } catch (error) {
+      throw mapDuplicateEmail(error);
     }
   }
 
@@ -69,4 +86,10 @@ export class UsersService {
       data: { professionalId },
     });
   }
+}
+
+function mapDuplicateEmail(error: unknown): unknown {
+  return isUniqueConstraintError(error)
+    ? new ConflictException('El email ya está registrado')
+    : error;
 }

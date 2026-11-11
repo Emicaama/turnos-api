@@ -14,12 +14,9 @@ export class PatientsService {
 
   async create(dto: CreatePatientDto) {
     try {
-      return await this.prisma.patient.create({ data: dto });
+      return await this.prisma.patient.create({ data: toPatientData(dto) });
     } catch (error) {
-      if (isUniqueConstraintError(error)) {
-        throw new ConflictException('Ya existe un paciente con ese documento');
-      }
-      throw error;
+      throw mapDuplicateDocument(error);
     }
   }
 
@@ -39,6 +36,27 @@ export class PatientsService {
 
   async update(id: string, dto: UpdatePatientDto) {
     await this.findById(id);
-    return this.prisma.patient.update({ where: { id }, data: dto });
+    try {
+      return await this.prisma.patient.update({
+        where: { id },
+        data: toPatientData(dto),
+      });
+    } catch (error) {
+      throw mapDuplicateDocument(error);
+    }
   }
+}
+
+function toPatientData<T extends UpdatePatientDto>(dto: T) {
+  const { birthDate, ...rest } = dto;
+  return {
+    ...rest,
+    birthDate: birthDate ? new Date(birthDate) : birthDate,
+  } as Omit<T, 'birthDate'> & { birthDate?: Date | null };
+}
+
+function mapDuplicateDocument(error: unknown): unknown {
+  return isUniqueConstraintError(error)
+    ? new ConflictException('Ya existe un paciente con ese documento')
+    : error;
 }

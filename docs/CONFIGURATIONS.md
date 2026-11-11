@@ -17,19 +17,19 @@
 |---------|-----|--------|
 | [`.env.example`](../.env.example) | Plantilla de env local | F1–F5 |
 | [`src/config/env.validation.ts`](../src/config/env.validation.ts) | Validación al boot (`ConfigModule`) | F1–F5 |
-| [`prisma/schema.prisma`](../prisma/schema.prisma) | Modelos y `env("DATABASE_URL")` | F2–F5 |
-| [`docker-compose.yml`](../docker-compose.yml) | Postgres 16, host `5433` → contenedor `5432`, volume `postgres_data` | F2–F5 |
+| [`prisma/schema.prisma`](../prisma/schema.prisma) | Modelos (turnos, lista de espera, bitácora, triaje, signos, indicación, dosis, camas, internaciones, insumos, cargos, cuenta de la estadía) y `env("DATABASE_URL")` | F2–F5, A5, B1–B3, C1–C3, D1, D2 |
+| [`docker-compose.yml`](../docker-compose.yml) | Postgres 16, host `5433` → contenedor `5432`, volume `postgres_data`; servicio `api` que compila, sincroniza el schema, siembra y arranca | F2–F5 |
 | [`src/app.module.ts`](../src/app.module.ts) | `ConfigModule.forRoot`, guards globales | F1–F5 |
 | [`src/auth/auth.module.ts`](../src/auth/auth.module.ts) | `JwtModule.registerAsync` | F1 |
 | [`src/main.ts`](../src/main.ts) | Prefijo, ValidationPipe, Swagger, `PORT` | F1–F5 |
 | [`package.json`](../package.json) | Scripts, `engines.node >= 22`, Jest | tooling |
-| [`test/jest-e2e.json`](../test/jest-e2e.json) | e2e contra Postgres `turnos_test` | F1, F3–F5 |
+| [`test/jest-e2e.json`](../test/jest-e2e.json) | e2e contra Postgres `turnos_test` | F1, F3–F5, B2, C1–C3, D1, D2 |
 | [`test/setup-e2e-env.js`](../test/setup-e2e-env.js) | JWT/TZ/PORT de prueba | e2e |
 | [`nest-cli.json`](../nest-cli.json) | Compilación Nest | build |
 | [`tsconfig.json`](../tsconfig.json) | TS (`nodenext`, decorators) | build |
 | [`.prettierrc`](../.prettierrc) | Formato (`singleQuote`, `trailingComma`) | tooling |
 
-No hay `.cursor/rules`, skills ni agents en este workspace.
+Hay un agent en [`.cursor/agents/next-frontend.md`](../.cursor/agents/next-frontend.md). No hay `.cursor/rules` ni skills en este repo.
 
 ## Variables de entorno
 
@@ -56,4 +56,4 @@ Prisma lee `DATABASE_URL` del schema; `PrismaService` también inyecta `datasour
 
 ## Rules / skills / agents (si aplica)
 
-No aplica: este repo no contiene `.cursor/`.
+El único archivo de Cursor en el repo es [`.cursor/agents/next-frontend.md`](../.cursor/agents/next-frontend.md). No hay rules ni skills.

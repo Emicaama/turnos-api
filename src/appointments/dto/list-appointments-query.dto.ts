@@ -12,6 +12,10 @@ export class ListAppointmentsQueryDto {
 
   @IsOptional()
   @IsUUID()
+  patientId?: string;
+
+  @IsOptional()
+  @IsUUID()
   branchId?: string;
 
   @IsOptional()

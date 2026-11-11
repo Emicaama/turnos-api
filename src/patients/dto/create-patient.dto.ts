@@ -1,4 +1,15 @@
-import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import { Coverage } from '@prisma/client';
+import {
+  IsBoolean,
+  IsDateString,
+  IsEmail,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  Min,
+  MinLength,
+} from 'class-validator';
 
 export class CreatePatientDto {
   @IsString()
@@ -20,4 +31,41 @@ export class CreatePatientDto {
   @IsOptional()
   @IsString()
   phone?: string;
+
+  @IsOptional()
+  @IsDateString()
+  birthDate?: string;
+
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @IsOptional()
+  @IsString()
+  insurer?: string;
+
+  @IsOptional()
+  @IsString()
+  affiliateNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  emergencyContact?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  active?: boolean;
+
+  @IsOptional()
+  @IsEnum(Coverage)
+  coverage?: Coverage;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  copay?: number;
 }

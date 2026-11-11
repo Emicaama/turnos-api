@@ -7,10 +7,16 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Appointment, Prisma, WaitlistEntry } from '@prisma/client';
+import {
+  Appointment,
+  Prisma,
+  ProfessionalStatus,
+  WaitlistEntry,
+} from '@prisma/client';
 import type { AuthUser } from '../auth/auth-user';
 import { AvailabilityService } from '../availability/availability.service';
 import { clinicDay, clockMinute } from '../availability/time-in-zone';
+import { addBinnacleNote } from '../binnacle/binnacle-note';
 import { BranchesService } from '../branches/branches.service';
 import {
   ACTIVE_APPOINTMENT_STATUSES,
@@ -20,27 +26,23 @@ import { Role } from '../common/enums/role.enum';
 import { NOTIFICATION_PORT } from '../notifications/notification.port';
 import type { NotificationPort } from '../notifications/notification.port';
 import { PatientsService } from '../patients/patients.service';
+import { isSerializationConflict } from '../prisma/prisma.errors';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProfessionalsService } from '../professionals/professionals.service';
-import { CreateAppointmentDto } from './dto/create-appointment.dto';
-import { ListAppointmentsQueryDto } from './dto/list-appointments-query.dto';
-import { UpdateAppointmentDto } from './dto/update-appointment.dto';
 import {
   canReschedule,
   canTransition,
-  chooseSlot,
-  enqueue,
   findActiveOverlap,
-  inTransaction,
   isEntreturnoStart,
+  joinWaitlist,
   parseRange,
   statusNote,
-  takenJustNow,
   transitionError,
-  writeNote,
   type Range,
-  type Slot,
-} from './utils';
+} from './appointment-rules';
+import { CreateAppointmentDto } from './dto/create-appointment.dto';
+import { ListAppointmentsQueryDto } from './dto/list-appointments-query.dto';
+import { UpdateAppointmentDto } from './dto/update-appointment.dto';
 
 export type BookingResult =
   | {
@@ -67,37 +69,27 @@ export class AppointmentsService {
     dto: CreateAppointmentDto,
     actor: AuthUser,
   ): Promise<BookingResult> {
-    const range = await this.prepare(dto, actor);
-    if (dto.entreturno) {
-      return this.createEntreturno(dto, range, actor);
-    }
-    return this.bookOrWait(dto, range, actor);
+    const range = await this.validateNewAppointment(dto, actor);
+    return dto.entreturno
+      ? this.insertEntreturno(dto, range, actor)
+      : this.bookOrJoinWaitlist(dto, range, actor);
   }
 
   list(query: ListAppointmentsQueryDto, actor: AuthUser) {
-    const where: Prisma.AppointmentWhereInput = {};
-    if (actor.role === Role.Profesional) {
-      if (!actor.professionalId) {
-        throw new ForbiddenException('El profesional no está vinculado');
-      }
-      where.professionalId = actor.professionalId;
-    } else if (query.professionalId) {
-      where.professionalId = query.professionalId;
-    }
-    if (query.branchId) {
-      where.branchId = query.branchId;
-    }
-    if (query.status) {
-      where.status = query.status;
-    }
-    if (query.from || query.to) {
-      where.startAt = {
-        gte: query.from ? new Date(query.from) : undefined,
-        lte: query.to ? new Date(query.to) : undefined,
-      };
-    }
     return this.prisma.appointment.findMany({
-      where,
+      where: {
+        professionalId: this.visibleProfessionalId(query, actor),
+        patientId: query.patientId,
+        branchId: query.branchId,
+        status: query.status,
+        startAt:
+          query.from || query.to
+            ? {
+                gte: query.from ? new Date(query.from) : undefined,
+                lte: query.to ? new Date(query.to) : undefined,
+              }
+            : undefined,
+      },
       orderBy: { startAt: 'asc' },
     });
   }
@@ -161,7 +153,20 @@ export class AppointmentsService {
     return this.changeStatus(current, AppointmentStatus.Cancelado, actor);
   }
 
-  private async prepare(
+  private visibleProfessionalId(
+    query: ListAppointmentsQueryDto,
+    actor: AuthUser,
+  ): string | undefined {
+    if (actor.role !== Role.Profesional) {
+      return query.professionalId;
+    }
+    if (!actor.professionalId) {
+      throw new ForbiddenException('El profesional no está vinculado');
+    }
+    return actor.professionalId;
+  }
+
+  private async validateNewAppointment(
     dto: CreateAppointmentDto,
     actor: AuthUser,
   ): Promise<Range> {
@@ -169,35 +174,32 @@ export class AppointmentsService {
       throw new ForbiddenException('El profesional no crea turnos ajenos');
     }
     const range = parseRange(dto.startAt, dto.endAt);
-    await this.assertCatalog(dto.patientId, dto.professionalId, dto.branchId);
-    await this.assertAvailability(
+    await this.assertCatalogExists(
+      dto.patientId,
       dto.professionalId,
       dto.branchId,
-      range.startAt,
-      range.endAt,
     );
+    await this.assertAvailability(dto.professionalId, dto.branchId, range);
     return range;
   }
 
-  private async bookOrWait(
+  private async bookOrJoinWaitlist(
     dto: CreateAppointmentDto,
     range: Range,
     actor: AuthUser,
   ): Promise<BookingResult> {
-    const slot: Slot = {
-      professionalId: dto.professionalId,
-      branchId: dto.branchId,
-      ...range,
-    };
-
-    const booked = await this.save(async (tx) => {
-      const busy = (await findActiveOverlap(tx, slot)) !== null;
-      if (chooseSlot(busy) === 'lista_de_espera') {
-        const waitlist = await enqueue(tx, {
+    const booking = await this.runBooking(async (tx) => {
+      const slotTaken = await findActiveOverlap(tx, {
+        professionalId: dto.professionalId,
+        branchId: dto.branchId,
+        ...range,
+      });
+      if (slotTaken) {
+        const waitlist = await joinWaitlist(tx, {
           patientId: dto.patientId,
           professionalId: dto.professionalId,
           branchId: dto.branchId,
-          day: clinicDay(range.startAt, this.timeZone()),
+          day: clinicDay(range.startAt, this.clinicTimeZone()),
         });
         return { result: 'lista_de_espera' as const, waitlist };
       }
@@ -206,52 +208,50 @@ export class AppointmentsService {
           patientId: dto.patientId,
           professionalId: dto.professionalId,
           branchId: dto.branchId,
-          startAt: range.startAt,
-          endAt: range.endAt,
+          ...range,
           status: AppointmentStatus.Programado,
           notes: dto.notes,
         },
       });
-      await writeNote(tx, appointment.id, actor.name, 'Creó el turno');
+      await addBinnacleNote(tx, appointment.id, actor.name, 'Creó el turno');
       return { result: 'programado' as const, appointment };
     });
 
-    if (booked.result === 'lista_de_espera') {
-      await this.notifications.notify({
-        type: 'waitlist_joined',
-        appointmentId: booked.waitlist.id,
-        professionalId: dto.professionalId,
-        patientId: dto.patientId,
-        message:
-          'No había horario libre. El paciente quedó en la lista de espera',
-      });
-      return booked;
-    }
-
-    await this.notifications.notify({
-      type: 'created',
-      appointmentId: booked.appointment.id,
-      professionalId: dto.professionalId,
-      patientId: dto.patientId,
-      message: 'Turno programado',
-    });
-    return booked;
+    await this.notifications.notify(
+      booking.result === 'lista_de_espera'
+        ? {
+            type: 'waitlist_joined',
+            appointmentId: booking.waitlist.id,
+            professionalId: dto.professionalId,
+            patientId: dto.patientId,
+            message:
+              'No había horario libre. El paciente quedó en la lista de espera',
+          }
+        : {
+            type: 'created',
+            appointmentId: booking.appointment.id,
+            professionalId: dto.professionalId,
+            patientId: dto.patientId,
+            message: 'Turno programado',
+          },
+    );
+    return booking;
   }
 
-  private async createEntreturno(
+  private async insertEntreturno(
     dto: CreateAppointmentDto,
     range: Range,
     actor: AuthUser,
   ): Promise<BookingResult> {
-    const minute = clockMinute(range.startAt, this.timeZone());
+    const minute = clockMinute(range.startAt, this.clinicTimeZone());
     if (!isEntreturnoStart(minute)) {
       throw new BadRequestException(
         'Un entreturno solo puede empezar a los :15 o a los :45',
       );
     }
 
-    const { appointment, acortado } = await this.save(async (tx) => {
-      const neighbor = await tx.appointment.findFirst({
+    const { appointment, acortado } = await this.runBooking(async (tx) => {
+      const ongoing = await tx.appointment.findFirst({
         where: {
           professionalId: dto.professionalId,
           branchId: dto.branchId,
@@ -260,19 +260,19 @@ export class AppointmentsService {
           endAt: { gt: range.startAt },
         },
       });
-      if (!neighbor) {
+      if (!ongoing) {
         throw new BadRequestException(
           'No hay un turno en curso para acortar en ese horario',
         );
       }
-      if (neighbor.endAt.getTime() !== range.endAt.getTime()) {
+      if (ongoing.endAt.getTime() !== range.endAt.getTime()) {
         throw new BadRequestException(
           'El entreturno tiene que terminar cuando terminaba el turno que se acorta',
         );
       }
 
       const shortened = await tx.appointment.update({
-        where: { id: neighbor.id },
+        where: { id: ongoing.id },
         data: { endAt: range.startAt, acortado: true },
       });
       const created = await tx.appointment.create({
@@ -280,20 +280,19 @@ export class AppointmentsService {
           patientId: dto.patientId,
           professionalId: dto.professionalId,
           branchId: dto.branchId,
-          startAt: range.startAt,
-          endAt: range.endAt,
+          ...range,
           status: AppointmentStatus.Programado,
           entreturno: true,
           notes: dto.notes,
         },
       });
-      await writeNote(
+      await addBinnacleNote(
         tx,
         shortened.id,
         actor.name,
         'Se acortó por un entreturno',
       );
-      await writeNote(tx, created.id, actor.name, 'Creó un entreturno');
+      await addBinnacleNote(tx, created.id, actor.name, 'Creó un entreturno');
       return { appointment: created, acortado: shortened };
     });
 
@@ -322,31 +321,26 @@ export class AppointmentsService {
     if (actor.role === Role.Profesional) {
       throw new ForbiddenException('El profesional no reprograma turnos');
     }
-    if (!canReschedule(current.status as AppointmentStatus)) {
-      throw new BadRequestException('Este turno no se puede reprogramar');
-    }
-    const startAt = dto.startAt ? new Date(dto.startAt) : current.startAt;
-    const endAt = dto.endAt ? new Date(dto.endAt) : current.endAt;
-    parseRange(startAt.toISOString(), endAt.toISOString());
+    this.assertCanReschedule(current);
+    const range = parseRange(
+      dto.startAt ?? current.startAt,
+      dto.endAt ?? current.endAt,
+    );
     await this.assertAvailability(
       current.professionalId,
       current.branchId,
-      startAt,
-      endAt,
+      range,
     );
 
-    const { created, promoted } = await this.save(async (tx) => {
+    const { created, promoted } = await this.runBooking(async (tx) => {
       const fresh = await tx.appointment.findUnique({
         where: { id: current.id },
       });
-      if (!fresh || !canReschedule(fresh.status as AppointmentStatus)) {
-        throw new BadRequestException('Este turno no se puede reprogramar');
-      }
+      this.assertCanReschedule(fresh);
       const clash = await findActiveOverlap(tx, {
         professionalId: fresh.professionalId,
         branchId: fresh.branchId,
-        startAt,
-        endAt,
+        ...range,
         excludeId: fresh.id,
       });
       if (clash) {
@@ -358,20 +352,24 @@ export class AppointmentsService {
         where: { id: fresh.id },
         data: { status: AppointmentStatus.Cancelado },
       });
-      await writeNote(tx, fresh.id, actor.name, 'Reprogramó el turno');
+      await addBinnacleNote(tx, fresh.id, actor.name, 'Reprogramó el turno');
       const next = await tx.appointment.create({
         data: {
           patientId: fresh.patientId,
           professionalId: fresh.professionalId,
           branchId: fresh.branchId,
-          startAt,
-          endAt,
+          ...range,
           status: AppointmentStatus.Programado,
           notes: dto.notes ?? fresh.notes,
         },
       });
-      await writeNote(tx, next.id, actor.name, 'Creó el turno reprogramado');
-      const filled = await this.promoteFirst(tx, fresh, actor);
+      await addBinnacleNote(
+        tx,
+        next.id,
+        actor.name,
+        'Creó el turno reprogramado',
+      );
+      const filled = await this.promoteFromWaitlist(tx, fresh, actor);
       return { created: next, promoted: filled };
     });
 
@@ -406,12 +404,17 @@ export class AppointmentsService {
         where: { id: current.id },
         data: { status: next },
       });
-      await writeNote(this.prisma, updated.id, actor.name, statusNote(next));
+      await addBinnacleNote(
+        this.prisma,
+        updated.id,
+        actor.name,
+        statusNote(next),
+      );
       await this.notifyStatus(updated, next);
       return updated;
     }
 
-    const { updated, promoted } = await this.save(async (tx) => {
+    const { updated, promoted } = await this.runBooking(async (tx) => {
       const fresh = await tx.appointment.findUnique({
         where: { id: current.id },
       });
@@ -423,8 +426,8 @@ export class AppointmentsService {
         where: { id: fresh.id },
         data: { status: AppointmentStatus.Cancelado },
       });
-      await writeNote(tx, cancelled.id, actor.name, statusNote(next));
-      const filled = await this.promoteFirst(tx, cancelled, actor);
+      await addBinnacleNote(tx, cancelled.id, actor.name, statusNote(next));
+      const filled = await this.promoteFromWaitlist(tx, cancelled, actor);
       return { updated: cancelled, promoted: filled };
     });
 
@@ -433,47 +436,41 @@ export class AppointmentsService {
     return promoted ? { ...updated, promoted } : updated;
   }
 
-  private save<T>(
-    fn: (tx: Prisma.TransactionClient) => Promise<T>,
+  private runBooking<T>(
+    work: (tx: Prisma.TransactionClient) => Promise<T>,
   ): Promise<T> {
-    return inTransaction(this.prisma, fn).catch((error: unknown) => {
-      if (takenJustNow(error)) {
+    return this.prisma.runSerializable(work).catch((error: unknown) => {
+      if (isSerializationConflict(error)) {
         throw new ConflictException('El turno acaba de ser ocupado');
       }
       throw error;
     });
   }
 
-  private async promoteFirst(
+  private async promoteFromWaitlist(
     tx: Prisma.TransactionClient,
     freed: Appointment,
     actor: AuthUser,
   ): Promise<Appointment | null> {
-    const clash = await findActiveOverlap(tx, {
-      professionalId: freed.professionalId,
-      branchId: freed.branchId,
-      startAt: freed.startAt,
-      endAt: freed.endAt,
-    });
-    if (clash) {
+    const stillTaken = await findActiveOverlap(tx, freed);
+    if (stillTaken) {
       return null;
     }
-    const day = clinicDay(freed.startAt, this.timeZone());
-    const entry = await tx.waitlistEntry.findFirst({
+    const firstInLine = await tx.waitlistEntry.findFirst({
       where: {
         professionalId: freed.professionalId,
         branchId: freed.branchId,
-        day,
+        day: clinicDay(freed.startAt, this.clinicTimeZone()),
         promotedAppointmentId: null,
       },
       orderBy: { createdAt: 'asc' },
     });
-    if (!entry) {
+    if (!firstInLine) {
       return null;
     }
     const appointment = await tx.appointment.create({
       data: {
-        patientId: entry.patientId,
+        patientId: firstInLine.patientId,
         professionalId: freed.professionalId,
         branchId: freed.branchId,
         startAt: freed.startAt,
@@ -483,16 +480,16 @@ export class AppointmentsService {
       },
     });
     await tx.waitlistEntry.update({
-      where: { id: entry.id },
+      where: { id: firstInLine.id },
       data: { promotedAppointmentId: appointment.id },
     });
-    await writeNote(
+    await addBinnacleNote(
       tx,
       appointment.id,
       actor.name,
       'Asignó el horario liberado desde la lista de espera',
     );
-    await writeNote(
+    await addBinnacleNote(
       tx,
       freed.id,
       actor.name,
@@ -516,20 +513,20 @@ export class AppointmentsService {
   }
 
   private async notifyStatus(updated: Appointment, next: AppointmentStatus) {
-    const enSala = next === AppointmentStatus.EnSalaDeEspera;
+    const inWaitingRoom = next === AppointmentStatus.EnSalaDeEspera;
     await this.notifications.notify({
       type:
         next === AppointmentStatus.Cancelado ? 'cancelled' : 'status_changed',
       appointmentId: updated.id,
       professionalId: updated.professionalId,
       patientId: updated.patientId,
-      message: enSala
+      message: inWaitingRoom
         ? 'Paciente en sala de espera. Avisar al consultorio.'
         : `Estado: ${next}`,
     });
   }
 
-  private async assertCatalog(
+  private async assertCatalogExists(
     patientId: string,
     professionalId: string,
     branchId: string,
@@ -539,6 +536,11 @@ export class AppointmentsService {
       this.patientsService.findById(patientId),
       this.branchesService.findById(branchId),
     ]);
+    if (professional.status !== ProfessionalStatus.activo) {
+      throw new BadRequestException(
+        'El profesional no está habilitado para recibir turnos',
+      );
+    }
     const worksHere = professional.branchIds.includes(branchId);
     if (professional.branchIds.length > 0 && !worksHere) {
       throw new BadRequestException(
@@ -550,15 +552,13 @@ export class AppointmentsService {
   private async assertAvailability(
     professionalId: string,
     branchId: string,
-    startAt: Date,
-    endAt: Date,
+    range: Range,
   ) {
     const covers = await this.availabilityService.coversSlot({
       professionalId,
       branchId,
-      startAt,
-      endAt,
-      timeZone: this.timeZone(),
+      ...range,
+      timeZone: this.clinicTimeZone(),
     });
     if (!covers) {
       throw new BadRequestException(
@@ -567,11 +567,22 @@ export class AppointmentsService {
     }
   }
 
-  private assertCanView(appointment: Appointment, actor: AuthUser) {
-    if (actor.role !== Role.Profesional) {
-      return;
+  private assertCanReschedule(
+    appointment: Appointment | null,
+  ): asserts appointment is Appointment {
+    if (
+      !appointment ||
+      !canReschedule(appointment.status as AppointmentStatus)
+    ) {
+      throw new BadRequestException('Este turno no se puede reprogramar');
     }
-    if (actor.professionalId !== appointment.professionalId) {
+  }
+
+  private assertCanView(appointment: Appointment, actor: AuthUser) {
+    if (
+      actor.role === Role.Profesional &&
+      actor.professionalId !== appointment.professionalId
+    ) {
       throw new ForbiddenException('No podés ver turnos de otro profesional');
     }
   }
@@ -582,7 +593,7 @@ export class AppointmentsService {
     }
   }
 
-  private timeZone() {
+  private clinicTimeZone() {
     return this.config.get<string>('CLINIC_TZ') ?? 'UTC';
   }
 }

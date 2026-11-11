@@ -1,8 +1,8 @@
-import { compareTriage, triageAlert } from './triage';
+import { byRiskThenArrival, isVitalRisk } from './triage';
 
 const at = (iso: string) => new Date(iso);
 
-describe('compareTriage', () => {
+describe('byRiskThenArrival', () => {
   it('pone el rojo delante de un riesgo menor que llegó antes', () => {
     const yellow = {
       level: 'amarillo' as const,
@@ -12,10 +12,9 @@ describe('compareTriage', () => {
       level: 'rojo' as const,
       createdAt: at('2026-10-27T10:05:00.000Z'),
     };
-    expect([yellow, red].sort(compareTriage).map((row) => row.level)).toEqual([
-      'rojo',
-      'amarillo',
-    ]);
+    expect(
+      [yellow, red].sort(byRiskThenArrival).map((row) => row.level),
+    ).toEqual(['rojo', 'amarillo']);
   });
 
   it('a igual nivel conserva el orden de llegada', () => {
@@ -27,16 +26,14 @@ describe('compareTriage', () => {
       level: 'verde' as const,
       createdAt: at('2026-10-27T10:00:00.000Z'),
     };
-    expect([later, earlier].sort(compareTriage)).toEqual([earlier, later]);
+    expect([later, earlier].sort(byRiskThenArrival)).toEqual([earlier, later]);
   });
 });
 
-describe('triageAlert', () => {
-  it('avisa a la guardia solo en código rojo', () => {
-    expect(triageAlert('rojo')).toBe(
-      'Riesgo vital (código rojo). Avisar a los médicos de guardia.',
-    );
-    expect(triageAlert('amarillo')).toBeNull();
-    expect(triageAlert('verde')).toBeNull();
+describe('isVitalRisk', () => {
+  it('solo el código rojo es riesgo vital', () => {
+    expect(isVitalRisk('rojo')).toBe(true);
+    expect(isVitalRisk('amarillo')).toBe(false);
+    expect(isVitalRisk('verde')).toBe(false);
   });
 });

@@ -131,7 +131,7 @@ describe('Turnos (e2e)', () => {
       startAt: '2026-08-17T13:00:00.000Z',
       endAt: '2026-08-17T13:15:00.000Z',
     }).expect(400);
-    expect(rejected.body.message).toBe(
+    expect((rejected.body as BookingBody).message).toBe(
       'Un entreturno solo puede empezar a los :15 o a los :45',
     );
 
@@ -226,7 +226,9 @@ describe('Turnos (e2e)', () => {
       .set('Authorization', `Bearer ${secretariaToken}`)
       .send({ status: 'atendido' })
       .expect(400);
-    expect(blocked.body.message).toBe('Un turno cancelado no avanza');
+    expect((blocked.body as BookingBody).message).toBe(
+      'Un turno cancelado no avanza',
+    );
   });
 
   it('dos reservas simultáneas dejan un solo programado', async () => {
@@ -251,14 +253,15 @@ describe('Turnos (e2e)', () => {
     const responses = [first, second];
     const programmed = responses.filter(
       (res) =>
-        res.status === 201 &&
-        (res.body as BookingBody).result === 'programado',
+        res.status === 201 && (res.body as BookingBody).result === 'programado',
     );
     expect(programmed).toHaveLength(1);
 
     const other = responses.find((res) => res !== programmed[0]);
     if (other?.status === 409) {
-      expect(other.body.message).toBe('El turno acaba de ser ocupado');
+      expect((other.body as BookingBody).message).toBe(
+        'El turno acaba de ser ocupado',
+      );
       return;
     }
     expect(other?.status).toBe(201);

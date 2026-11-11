@@ -11,6 +11,7 @@ enum Role {
   admin
   secretaria
   profesional
+  enfermero
 }
 
 enum AppointmentStatus {
@@ -26,6 +27,55 @@ enum TriageLevel {
   verde
 }
 
+enum BinnacleKind {
+  agenda
+  signos
+  medicacion
+}
+
+enum BedStatus {
+  libre
+  ocupada
+  en_limpieza
+  bloqueada
+}
+
+enum AdmissionReason {
+  cirugia
+  respiratorio
+  pediatria
+}
+
+enum Coverage {
+  publica
+  prepaga
+  particular
+}
+
+enum Payer {
+  paciente
+  estado
+  prepaga
+}
+
+enum ProfessionalStatus {
+  activo
+  licencia
+  inactivo
+}
+
+enum AvailabilityModality {
+  presencial
+  telemedicina
+  mixta
+}
+
+enum AvailabilityStatus {
+  activo
+  suspendido
+  licencia
+}
+
 model User {
   id             String   @id @default(uuid())
   email          String   @unique
@@ -33,6 +83,7 @@ model User {
   name           String
   role           Role
   professionalId String?
+  active         Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }
@@ -46,44 +97,65 @@ model Branch {
 }
 
 model Specialty {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  icon        String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Patient {
-  id         String   @id @default(uuid())
-  firstName  String
-  lastName   String
-  documentId String   @unique
-  email      String?
-  phone      String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id               String    @id @default(uuid())
+  firstName        String
+  lastName         String
+  documentId       String    @unique
+  email            String?
+  phone            String?
+  birthDate        DateTime? @db.Date
+  address          String?
+  insurer          String?
+  affiliateNumber  String?
+  emergencyContact String?
+  notes            String?
+  active           Boolean   @default(true)
+  coverage         Coverage  @default(particular)
+  copay            Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 }
 
 model Professional {
-  id           String   @id @default(uuid())
-  firstName    String
-  lastName     String
-  userId       String?
-  specialtyIds String[]
-  branchIds    String[]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String             @id @default(uuid())
+  firstName     String
+  lastName      String
+  userId        String?
+  specialtyIds  String[]
+  branchIds     String[]
+  licenseNumber String?
+  phone         String?
+  email         String?
+  office        String?
+  notes         String?
+  status        ProfessionalStatus @default(activo)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 }
 
 model Availability {
-  id             String   @id @default(uuid())
+  id             String               @id @default(uuid())
   professionalId String
   branchId       String
   weekday        Int
   startTime      String
   endTime        String
-  slotMinutes    Int      @default(30)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  slotMinutes    Int                  @default(30)
+  room           String?
+  modality       AvailabilityModality @default(presencial)
+  status         AvailabilityStatus   @default(activo)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
 
   @@unique([professionalId, branchId, weekday, startTime])
   @@index([professionalId, branchId, weekday])
@@ -119,11 +191,12 @@ model WaitlistEntry {
 }
 
 model BinnacleRecord {
-  id            String   @id @default(uuid())
+  id            String       @id @default(uuid())
   appointmentId String
   authorName    String
   text          String
-  createdAt     DateTime @default(now())
+  kind          BinnacleKind @default(agenda)
+  createdAt     DateTime     @default(now())
 
   @@index([appointmentId, createdAt])
 }
@@ -136,4 +209,92 @@ model TriageEntry {
   createdAt DateTime    @default(now())
 
   @@index([branchId, createdAt])
+}
+
+model VitalSign {
+  id                 String   @id @default(uuid())
+  appointmentId      String
+  patientId          String
+  sistolica          Int
+  diastolica         Int
+  frecuenciaCardiaca Int
+  temperatura        Float
+  fueraDeRango       Boolean
+  authorName         String
+  createdAt          DateTime @default(now())
+
+  @@index([appointmentId, createdAt])
+}
+
+model Prescription {
+  id        String   @id @default(uuid())
+  patientId String
+  supplyId  String
+  dosis     String
+  cadaHoras Int
+  createdAt DateTime @default(now())
+
+  @@index([patientId, createdAt])
+}
+
+model DoseAdministration {
+  id             String   @id @default(uuid())
+  indicacionId   String
+  appointmentId  String
+  horaIndicada   DateTime
+  administradaEn DateTime
+  authorName     String
+  createdAt      DateTime @default(now())
+
+  @@index([indicacionId, horaIndicada])
+}
+
+model Bed {
+  id        String    @id @default(uuid())
+  number    String    @unique
+  status    BedStatus @default(libre)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Admission {
+  id            String          @id @default(uuid())
+  patientId     String
+  bedId         String
+  reason        AdmissionReason
+  protocolTasks String[]
+  admittedAt    DateTime        @default(now())
+  dischargedAt  DateTime?
+
+  @@index([patientId, dischargedAt])
+}
+
+model Supply {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  stock     Int
+  price     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Charge {
+  id            String   @id @default(uuid())
+  appointmentId String
+  payer         Payer
+  amount        Int
+  createdAt     DateTime @default(now())
+
+  @@index([appointmentId])
+}
+
+model AccountLine {
+  id          String   @id @default(uuid())
+  admissionId String
+  doseId      String   @unique
+  concept     String
+  amount      Int
+  createdAt   DateTime @default(now())
+
+  @@index([admissionId])
 }

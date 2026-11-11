@@ -14,9 +14,7 @@ export class ProfessionalsService {
   async create(dto: CreateProfessionalDto) {
     const professional = await this.prisma.professional.create({
       data: {
-        firstName: dto.firstName,
-        lastName: dto.lastName,
-        userId: dto.userId,
+        ...dto,
         specialtyIds: dto.specialtyIds ?? [],
         branchIds: dto.branchIds ?? [],
       },
@@ -45,15 +43,6 @@ export class ProfessionalsService {
 
   async update(id: string, dto: UpdateProfessionalDto) {
     await this.findById(id);
-    return this.prisma.professional.update({
-      where: { id },
-      data: {
-        firstName: dto.firstName,
-        lastName: dto.lastName,
-        userId: dto.userId,
-        specialtyIds: dto.specialtyIds,
-        branchIds: dto.branchIds,
-      },
-    });
+    return this.prisma.professional.update({ where: { id }, data: dto });
   }
 }

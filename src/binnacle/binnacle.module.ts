@@ -5,6 +5,5 @@ import { BinnacleService } from './binnacle.service';
 @Module({
   controllers: [BinnacleController],
   providers: [BinnacleService],
-  exports: [BinnacleService],
 })
 export class BinnacleModule {}

@@ -1,34 +1,24 @@
 import { Prisma } from '@prisma/client';
 import { AppointmentStatus } from '../common/enums/appointment-status.enum';
+import { isSerializationConflict } from '../prisma/prisma.errors';
 import {
   canReschedule,
   canTransition,
-  chooseSlot,
   isEntreturnoStart,
-  takenJustNow,
-} from './utils';
+  parseRange,
+} from './appointment-rules';
 
-describe('chooseSlot', () => {
-  it('programa si el horario está libre', () => {
-    expect(chooseSlot(false)).toBe('programado');
-  });
-
-  it('manda a la lista de espera si el horario está ocupado', () => {
-    expect(chooseSlot(true)).toBe('lista_de_espera');
-  });
-});
-
-describe('takenJustNow', () => {
+describe('isSerializationConflict', () => {
   it('reconoce el conflicto de una transacción simultánea', () => {
     const error = new Prisma.PrismaClientKnownRequestError('conflict', {
       code: 'P2034',
       clientVersion: 'test',
     });
-    expect(takenJustNow(error)).toBe(true);
+    expect(isSerializationConflict(error)).toBe(true);
   });
 
   it('ignora otros errores', () => {
-    expect(takenJustNow(new Error('no'))).toBe(false);
+    expect(isSerializationConflict(new Error('no'))).toBe(false);
   });
 });
 
@@ -41,6 +31,14 @@ describe('isEntreturnoStart', () => {
   it('rechaza el resto de los minutos', () => {
     expect(isEntreturnoStart(0)).toBe(false);
     expect(isEntreturnoStart(30)).toBe(false);
+  });
+});
+
+describe('parseRange', () => {
+  it('rechaza un fin anterior al inicio', () => {
+    expect(() =>
+      parseRange('2026-08-17T12:30:00.000Z', '2026-08-17T12:00:00.000Z'),
+    ).toThrow('endAt debe ser posterior a startAt');
   });
 });
 

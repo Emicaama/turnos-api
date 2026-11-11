@@ -1,5 +1,8 @@
+import { ProfessionalStatus } from '@prisma/client';
 import {
   IsArray,
+  IsEmail,
+  IsEnum,
   IsUUID,
   IsOptional,
   IsString,
@@ -28,4 +31,28 @@ export class CreateProfessionalDto {
   @IsArray()
   @IsUUID('all', { each: true })
   branchIds?: string[];
+
+  @IsOptional()
+  @IsString()
+  licenseNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  office?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @IsOptional()
+  @IsEnum(ProfessionalStatus)
+  status?: ProfessionalStatus;
 }

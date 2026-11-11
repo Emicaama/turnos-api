@@ -22,6 +22,9 @@ export class AuthService {
     if (!matches) {
       throw new UnauthorizedException('Credenciales inválidas');
     }
+    if (!user.active) {
+      throw new UnauthorizedException('La cuenta está deshabilitada');
+    }
     const payload: AuthUser = {
       id: user.id,
       email: user.email,

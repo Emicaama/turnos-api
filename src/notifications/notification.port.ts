@@ -14,14 +14,14 @@ export type AppointmentNotification = {
   message: string;
 };
 
-export type TriageNotification = {
-  type: 'triage';
+export type GuardAlert = {
+  type: 'guardia';
   patientId: string;
   branchId: string;
   message: string;
 };
 
-export type NotificationEvent = AppointmentNotification | TriageNotification;
+export type NotificationEvent = AppointmentNotification | GuardAlert;
 
 export interface NotificationPort {
   notify(event: NotificationEvent): Promise<void>;

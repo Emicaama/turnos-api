@@ -1,20 +1,22 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { Roles } from '../common/decorators/roles.decorator';
-import { Role } from '../common/enums/role.enum';
-import { RolesGuard } from '../common/guards/roles.guard';
+import type { AuthUser } from '../auth/auth-user';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { BinnacleService } from './binnacle.service';
+import { ListBinnacleQueryDto } from './dto/list-binnacle-query.dto';
 
 @ApiTags('binnacle')
 @ApiBearerAuth()
-@UseGuards(RolesGuard)
-@Roles(Role.Admin, Role.Secretaria)
 @Controller('binnacle')
 export class BinnacleController {
   constructor(private readonly binnacle: BinnacleService) {}
 
   @Get(':appointmentId')
-  list(@Param('appointmentId') appointmentId: string) {
-    return this.binnacle.list(appointmentId);
+  list(
+    @Param('appointmentId') appointmentId: string,
+    @Query() query: ListBinnacleQueryDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.binnacle.list(appointmentId, user, query.kind);
   }
 }

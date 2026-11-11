@@ -15,10 +15,19 @@ async function main() {
       `Secretaría: ${SEED_ACCOUNTS.secretaria.email} / ${SEED_ACCOUNTS.secretaria.password}`,
     );
     console.log(
-      `Médicos: ${SEED_ACCOUNTS.medicos.ana.email} y ${SEED_ACCOUNTS.medicos.luis.email} / ${SEED_ACCOUNTS.medicos.ana.password}`,
+      `Enfermero: ${SEED_ACCOUNTS.enfermero.email} / ${SEED_ACCOUNTS.enfermero.password}`,
     );
     console.log(
-      '3 turnos el lunes 2026-10-05: Ana 09:00 y 10:00, Luis 11:00 (ART)',
+      `Médicos: ana.perez, luis.gomez, carla.ruiz, diego.fernandez y elena.soto @turnos.local / ${SEED_ACCOUNTS.medicos.ana.password}`,
+    );
+    console.log(
+      '20 turnos del lunes 9 al viernes 13 de noviembre de 2026, uno por paciente (ART)',
+    );
+    console.log(
+      'Cama 101 libre, 204 ocupada (Gael Torres, cirugía), 205 en limpieza, 310 bloqueada',
+    );
+    console.log(
+      'Cargos de consulta en tres coberturas. Cuenta de internación: Suero fisiológico $800',
     );
   } finally {
     await app.close();

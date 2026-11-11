@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsEmail,
   IsEnum,
   IsUUID,
@@ -25,4 +26,8 @@ export class CreateUserDto {
   @IsOptional()
   @IsUUID()
   professionalId?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  active?: boolean;
 }

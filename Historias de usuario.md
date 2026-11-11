@@ -4,7 +4,7 @@ Transcripción de `Historias de usuario.docx`, partida en bloques para citarlos 
 
 ## Cobertura aproximada
 
-Esta API es una agenda de consultorio: secretaría reserva turnos contra la disponibilidad de un profesional, evita solapes en memoria de la petición, mueve estados simples y anota una bitácora. También clasifica la guardia (A5). No hay internación, signos vitales, camas, stock ni facturación.
+Esta API es una agenda de consultorio: secretaría reserva turnos contra la disponibilidad de un profesional, evita solapes con una transacción serializable, mueve estados simples y anota una bitácora. También clasifica la guardia (A5), registra signos y medicación sobre un turno (B1, B2), interna pacientes en camas con su protocolo (B3, C1, C2), descuenta stock al medicar (C3) y factura por cobertura y por insumos (D1, D2). Hay un rol `enfermero`.
 
 | ID | Historia | Cobertura |
 |----|----------|-----------|
@@ -13,16 +13,16 @@ Esta API es una agenda de consultorio: secretaría reserva turnos contra la disp
 | A3 | Lista de espera por cancelación | Sí |
 | A4 | Transición del estado de atención | Sí |
 | A5 | Triaje de guardia | Sí |
-| B1 | Signos vitales | No |
-| B2 | Medicación prescrita | No |
-| B3 | Protocolos de atención (Builder) | No |
-| C1 | Asignación segura de cama | No |
-| C2 | Higiene y mantenimiento de camas | No |
-| C3 | Descuento de stock | No  |
-| D1 | Cálculo de costos por cobertura | No |
-| D2 | Cargo automático por insumos | No |
+| B1 | Signos vitales | Sí |
+| B2 | Medicación prescrita | Sí |
+| B3 | Protocolos de atención (Builder) | Sí |
+| C1 | Asignación segura de cama | Sí |
+| C2 | Higiene y mantenimiento de camas | Sí |
+| C3 | Descuento de stock | Sí |
+| D1 | Cálculo de costos por cobertura | Sí |
+| D2 | Cargo automático por insumos | Sí |
 
-De 13 historias, 5 están cubiertas (A1–A5) y 8 no existen en el proyecto.
+Las 13 historias están cubiertas.
 
 **A1.** `POST /api/v1/appointments` deja el turno en `programado` si el horario está libre. La reserva corre en una transacción serializable: si dos recepcionistas entran juntas al mismo hueco, la que pierde responde `409` («El turno acaba de ser ocupado»).
 
@@ -32,7 +32,23 @@ De 13 historias, 5 están cubiertas (A1–A5) y 8 no existen en el proyecto.
 
 **A4.** Estados: `programado` → `en_sala_de_espera` → `atendido`, y `cancelado` desde los dos primeros. No hay `confirmado`. Un `cancelado` no pasa a `atendido` (`400`). Entrar a sala de espera deja un aviso al consultorio en el log.
 
-**A5.** `POST /api/v1/triage` clasifica a un paciente sin turno en `rojo`, `amarillo` o `verde`. No crea un turno. `GET /api/v1/triage?branchId=` ordena la cola de esa sucursal: el rojo va primero y, a igual nivel, manda la llegada. El rojo deja un log `[triage]` para la guardia. No hay rol enfermero: lo carga secretaría o admin.
+**A5.** `POST /api/v1/triage` clasifica a un paciente sin turno en `rojo`, `amarillo` o `verde`. No crea un turno. `GET /api/v1/triage?branchId=` ordena la cola de esa sucursal: el rojo va primero y, a igual nivel, manda la llegada. El rojo deja un log `[guardia]`. Lo carga el enfermero, la secretaría o el admin.
+
+**B1.** `POST /api/v1/appointments/:id/vitals` guarda presión, frecuencia y temperatura del turno. Hasta 39 °C la nota es `El control de signos salió bien` (`kind: signos`). Por encima, `fueraDeRango` queda en true y el log `[guardia]` avisa. Lo carga el enfermero o el admin.
+
+**B2.** El profesional indica un insumo con `POST /api/v1/patients/:id/prescriptions`. El enfermero marca la toma con `POST /api/v1/appointments/:id/doses` solo si cae a ±30 minutos de `horaIndicada`; la bitácora (`kind: medicacion`) anota quién la dio y se descuenta una unidad del stock (C3).
+
+**B3.** `POST /api/v1/admissions` genera `protocolTasks` según `reason`: `cirugia`, `respiratorio` o `pediatria`.
+
+**C1.** La misma internación pasa la cama de `libre` a `ocupada` con un update condicional. Dos asignaciones simultáneas: una `201`, la otra `409` («La cama acaba de ocuparse»).
+
+**C2.** El alta (`POST /api/v1/admissions/:id/discharge`) deja la cama `en_limpieza`. `PATCH /api/v1/beds/:id/status` la vuelve a `libre` o la bloquea por mantenimiento.
+
+**C3.** Cada dosis descuenta 1 unidad del insumo de forma atómica (`stock > 0`); sin stock, `409`.
+
+**D1.** `POST /api/v1/appointments/:id/charges` reparte el precio entre paciente, Estado o prepaga según la cobertura del paciente.
+
+**D2.** Si el paciente está internado, la dosis agrega una línea «Insumos de Farmacia» a la cuenta de la estadía, ligada al `doseId`.
 
 ---
 
@@ -136,7 +152,7 @@ Estados pedidos:
 - Entonces el sistema lo pone primero en la cola y corre a los de menor riesgo.
 - Y alerta en los monitores de los médicos de guardia.
 
-**Cobertura: sí.** `POST /api/v1/triage` con `level: "rojo"` (riesgo vital), `amarillo` o `verde`. La cola de la sucursal sale en `GET /api/v1/triage?branchId=`, con el rojo delante de los riesgos menores. El código rojo avisa por log a la guardia. No hay rol enfermero: clasifican secretaría o admin.
+**Cobertura: sí.** `POST /api/v1/triage` con `level: "rojo"` (riesgo vital), `amarillo` o `verde`. La cola de la sucursal sale en `GET /api/v1/triage?branchId=`, con el rojo delante de los riesgos menores. El código rojo avisa por log a la guardia. Clasifican el enfermero, la secretaría o el admin.
 
 ---
 
@@ -163,7 +179,7 @@ Estados pedidos:
 - Entonces el registro se guarda destacado en rojo.
 - Y se notifica con prioridad alta al médico de guardia de ese sector.
 
-**Cobertura: no.** No hay internación, signos vitales ni historia clínica. La bitácora solo anota frases de la agenda.
+**Cobertura: sí.** `POST /api/v1/appointments/:id/vitals` guarda presión, frecuencia y temperatura sobre un turno existente. El paciente sale de ese turno; no hay habitación. Hasta 39 °C la nota de bitácora (`kind: signos`) es «El control de signos salió bien». Si la temperatura lo supera, el registro queda con `fueraDeRango: true` y el log avisa a la guardia. Presión y pulso se guardan y no disparan el aviso. Lo carga el enfermero o el admin. Los signos siguen colgando de un turno, no de la habitación.
 
 ### B2 — Administración de medicación prescrita
 
@@ -176,7 +192,7 @@ Estados pedidos:
 - Entonces queda registrado qué usuario la aplicó.
 - Y se descuenta el insumo del inventario del piso.
 
-**Cobertura: no.** No hay prescripciones, dosis ni stock.
+**Cobertura: sí.** `POST /api/v1/patients/:id/prescriptions` (profesional o admin) guarda el insumo (`supplyId`), la dosis y cada cuántas horas. `POST /api/v1/appointments/:id/doses` (enfermero o admin) acepta la toma si `administradaEn` cae a ±30 minutos de `horaIndicada`; si no, `400`. La bitácora (`kind: medicacion`) anota quién la aplicó y el insumo se descuenta del inventario (C3). El inventario es global, no por piso.
 
 ### B3 — Protocolos de atención (patrón Builder)
 
@@ -198,7 +214,7 @@ La épica arma un plan de cuidados distinto según el motivo de ingreso (cirugí
 - Entonces un Respiratory Protocol Builder genera las tareas.
 - Incluye monitoreo continuo de saturación y aislamiento de contacto y gotas.
 
-**Cobertura: no.** No hay ingreso a habitación ni generadores de protocolo.
+**Cobertura: sí.** Al internar (`POST /api/v1/admissions`) el motivo elige el protocolo y la internación guarda `protocolTasks`. `cirugia`: ayuno de 8 horas, vía intravenosa periférica, signos cada 2 horas. `respiratorio`: saturación continua, aislamiento de contacto y gotas. `pediatria`: signos cada 4 horas, peso y balance hídrico, acompañante permanente. El "builder" es un mapa motivo → tareas en `src/admissions/protocols.ts`, no una clase por protocolo. No hay traumatismo.
 
 ---
 
@@ -231,7 +247,7 @@ La épica arma un plan de cuidados distinto según el motivo de ingreso (cirugí
 - Entonces solo la primera petición prospera, con bloqueo de base.
 - Y la segunda se niega: la cama acaba de ocuparse.
 
-**Cobertura: no.** Hay sucursales, no camas. El solape de turnos (A1) no es este caso.
+**Cobertura: sí.** `POST /api/v1/admissions` con paciente, cama y motivo guarda `admittedAt` y pasa la cama a `ocupada` con `UPDATE ... WHERE status = 'libre'` dentro de la transacción. Si dos administrativos la asignan a la vez, el segundo recibe `409` «La cama acaba de ocuparse». Un paciente ya internado también recibe `409`. Asignan secretaría o admin.
 
 ### C2 — Higiene y mantenimiento de camas
 
@@ -261,7 +277,7 @@ La cama no puede pasar de ocupada a libre sin un paso intermedio.
 - Cuando maestranza confirma que terminó.
 - Entonces la cama pasa a "libre" y vuelve al mapa.
 
-**Cobertura: no.**
+**Cobertura: sí.** `POST /api/v1/admissions/:id/discharge` deja la cama `en_limpieza`; ahí no se puede internar a nadie (`409`). `PATCH /api/v1/beds/:id/status` con `libre` confirma la limpieza. `libre` ↔ `bloqueada` cubre mantenimiento. Una cama `ocupada` no cambia a mano (`400`). No hay rol maestranza: confirman el enfermero o el admin. El traslado se hace como alta más una internación nueva.
 
 ### C3 — Descuento operativo de stock
 
@@ -280,7 +296,7 @@ El inventario se engancha con el trabajo del día.
 - Cuando enfermería marca la dosis como "Administrada".
 - Entonces el stock pasa a 49 de forma atómica.
 
-**Cobertura: no.** Depende de B2, que tampoco está.
+**Cobertura: sí.** Al registrar la dosis, `UPDATE ... SET stock = stock - 1 WHERE stock > 0` corre en la misma transacción. La respuesta trae `stockRestante`. Sin stock, `409` y la dosis no se guarda. La "reacción al evento" es una llamada directa dentro de esa transacción, sin bus de eventos.
 
 ---
 
@@ -313,7 +329,7 @@ El costo depende de la cobertura: pública, prepaga o particular.
 - Entonces el paciente debe 3 000.
 - Y se reclaman 12 000 a la prepaga.
 
-**Cobertura: no.** El paciente no tiene cobertura ni hay nomenclador.
+**Cobertura: sí.** El paciente tiene `coverage` (`publica`, `prepaga`, `particular`) y `copay`. `POST /api/v1/appointments/:id/charges` con `{ price }` guarda un `Charge` por cada pagador. La estrategia es un mapa cobertura → regla en `src/billing/coverage.ts`. No hay nomenclador: el precio llega en el request. Una consulta se factura una vez (`409`).
 
 ### D2 — Cargo automático por consumo de insumos
 
@@ -329,4 +345,4 @@ Back-office escucha a enfermería sin frenar la atención.
 - Y se agrega una línea "Insumos de Farmacia" a la cuenta.
 - Y esa línea queda ligada al id del evento, para auditoría.
 
-**Cobertura: no.** No hay eventos de medicación, precios ni cuenta del paciente.
+**Cobertura: sí.** Cuando se registra una dosis y el paciente tiene una internación activa, se crea una `AccountLine` «Insumos de Farmacia» con el `price` vigente del insumo y el `doseId` (único, para auditoría). `GET /api/v1/admissions/:id/account` devuelve las líneas y el total. Corre en la transacción de la dosis, sin eventos asíncronos.

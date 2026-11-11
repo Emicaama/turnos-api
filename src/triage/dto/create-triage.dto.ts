@@ -1,5 +1,5 @@
-import { IsIn, IsUUID } from 'class-validator';
-import { TRIAGE_LEVELS, type TriageLevel } from '../triage';
+import { TriageLevel } from '@prisma/client';
+import { IsEnum, IsUUID } from 'class-validator';
 
 export class CreateTriageDto {
   @IsUUID()
@@ -8,6 +8,6 @@ export class CreateTriageDto {
   @IsUUID()
   branchId: string;
 
-  @IsIn(TRIAGE_LEVELS)
+  @IsEnum(TriageLevel)
   level: TriageLevel;
 }

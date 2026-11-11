@@ -14,7 +14,7 @@ export class TriageController {
   constructor(private readonly triageService: TriageService) {}
 
   @UseGuards(RolesGuard)
-  @Roles(Role.Admin, Role.Secretaria)
+  @Roles(Role.Admin, Role.Secretaria, Role.Enfermero)
   @Post()
   classify(@Body() dto: CreateTriageDto) {
     return this.triageService.classify(dto);
