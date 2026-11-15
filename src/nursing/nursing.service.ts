@@ -4,8 +4,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { AdmissionsService } from '../admissions/admissions.service';
 import type { AuthUser } from '../auth/auth-user';
-import { addBinnacleNote } from '../binnacle/binnacle-note';
+import { addStayNote } from '../binnacle/binnacle-note';
 import { BillingService } from '../billing/billing.service';
 import { NOTIFICATION_PORT } from '../notifications/notification.port';
 import type { NotificationPort } from '../notifications/notification.port';
@@ -21,6 +22,7 @@ import { doseNote, isFever, isWithinDoseWindow, vitalNote } from './nursing';
 export class NursingService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly admissions: AdmissionsService,
     private readonly patients: PatientsService,
     private readonly supplies: SuppliesService,
     private readonly billing: BillingService,
@@ -29,25 +31,26 @@ export class NursingService {
   ) {}
 
   async recordVitals(
-    appointmentId: string,
+    admissionId: string,
     dto: CreateVitalsDto,
     actor: AuthUser,
   ) {
-    const appointment = await this.findAppointment(appointmentId);
+    const admission = await this.admissions.findActive(admissionId);
     const fever = isFever(dto.temperatura);
     const vital = await this.prisma.$transaction(async (tx) => {
       const created = await tx.vitalSign.create({
         data: {
           ...dto,
-          appointmentId,
-          patientId: appointment.patientId,
+          admissionId,
+          patientId: admission.patientId,
           fueraDeRango: fever,
+          authorUserId: actor.id,
           authorName: actor.name,
         },
       });
-      await addBinnacleNote(
+      await addStayNote(
         tx,
-        appointmentId,
+        admissionId,
         actor.name,
         vitalNote(fever),
         'signos',
@@ -55,14 +58,32 @@ export class NursingService {
       return created;
     });
     if (fever) {
+      const bed = await this.prisma.bed.findUniqueOrThrow({
+        where: { id: admission.bedId },
+      });
       await this.notifications.notify({
         type: 'guardia',
-        patientId: appointment.patientId,
-        branchId: appointment.branchId,
-        message: `Temperatura ${dto.temperatura} °C. Avisar al médico de guardia.`,
+        patientId: admission.patientId,
+        message: `Cama ${bed.number}: temperatura ${dto.temperatura} °C. Avisar al médico de guardia.`,
       });
     }
     return vital;
+  }
+
+  async listVitalsForStay(admissionId: string) {
+    await this.admissions.findById(admissionId);
+    return this.prisma.vitalSign.findMany({
+      where: { admissionId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async listVitalsForPatient(patientId: string) {
+    await this.patients.findById(patientId);
+    return this.prisma.vitalSign.findMany({
+      where: { patientId },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
   async prescribe(patientId: string, dto: CreatePrescriptionDto) {
@@ -81,12 +102,12 @@ export class NursingService {
     });
   }
 
-  async giveDose(appointmentId: string, dto: GiveDoseDto, actor: AuthUser) {
-    const appointment = await this.findAppointment(appointmentId);
+  async giveDose(admissionId: string, dto: GiveDoseDto, actor: AuthUser) {
+    const admission = await this.admissions.findActive(admissionId);
     const prescription = await this.prisma.prescription.findUnique({
       where: { id: dto.indicacionId },
     });
-    if (!prescription || prescription.patientId !== appointment.patientId) {
+    if (!prescription || prescription.patientId !== admission.patientId) {
       throw new NotFoundException('Indicación no encontrada');
     }
     const horaIndicada = new Date(dto.horaIndicada);
@@ -101,36 +122,27 @@ export class NursingService {
       const dose = await tx.doseAdministration.create({
         data: {
           indicacionId: prescription.id,
-          appointmentId,
+          admissionId,
           horaIndicada,
           administradaEn,
+          authorUserId: actor.id,
           authorName: actor.name,
         },
       });
-      await addBinnacleNote(
+      await addStayNote(
         tx,
-        appointmentId,
+        admissionId,
         actor.name,
         doseNote(supply.name, prescription.dosis),
         'medicacion',
       );
-      const accountLine = await this.billing.chargeSupplyToActiveStay(
+      const accountLine = await this.billing.chargeSupplyToStay(
         tx,
-        appointment.patientId,
+        admission,
         supply,
         dose.id,
       );
       return { ...dose, stockRestante: supply.stock, accountLine };
     });
-  }
-
-  private async findAppointment(id: string) {
-    const appointment = await this.prisma.appointment.findUnique({
-      where: { id },
-    });
-    if (!appointment) {
-      throw new NotFoundException('Turno no encontrado');
-    }
-    return appointment;
   }
 }

@@ -18,13 +18,25 @@ export class NursingController {
   constructor(private readonly nursing: NursingService) {}
 
   @Roles(Role.Admin, Role.Enfermero)
-  @Post('appointments/:id/vitals')
+  @Post('admissions/:id/vitals')
   recordVitals(
     @Param('id') id: string,
     @Body() dto: CreateVitalsDto,
     @CurrentUser() user: AuthUser,
   ) {
     return this.nursing.recordVitals(id, dto, user);
+  }
+
+  @Roles(Role.Admin, Role.Enfermero, Role.Profesional, Role.Secretaria)
+  @Get('admissions/:id/vitals')
+  listVitalsForStay(@Param('id') id: string) {
+    return this.nursing.listVitalsForStay(id);
+  }
+
+  @Roles(Role.Admin, Role.Enfermero, Role.Profesional, Role.Secretaria)
+  @Get('patients/:id/vitals')
+  listVitalsForPatient(@Param('id') id: string) {
+    return this.nursing.listVitalsForPatient(id);
   }
 
   @Roles(Role.Admin, Role.Profesional, Role.Enfermero)
@@ -40,7 +52,7 @@ export class NursingController {
   }
 
   @Roles(Role.Admin, Role.Enfermero)
-  @Post('appointments/:id/doses')
+  @Post('admissions/:id/doses')
   giveDose(
     @Param('id') id: string,
     @Body() dto: GiveDoseDto,

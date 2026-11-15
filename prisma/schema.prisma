@@ -34,16 +34,10 @@ enum BinnacleKind {
 }
 
 enum BedStatus {
-  libre
+  disponible
   ocupada
   en_limpieza
   bloqueada
-}
-
-enum AdmissionReason {
-  cirugia
-  respiratorio
-  pediatria
 }
 
 enum Coverage {
@@ -107,23 +101,25 @@ model Specialty {
 }
 
 model Patient {
-  id               String    @id @default(uuid())
-  firstName        String
-  lastName         String
-  documentId       String    @unique
-  email            String?
-  phone            String?
-  birthDate        DateTime? @db.Date
-  address          String?
-  insurer          String?
-  affiliateNumber  String?
-  emergencyContact String?
-  notes            String?
-  active           Boolean   @default(true)
-  coverage         Coverage  @default(particular)
-  copay            Int       @default(0)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id                 String    @id @default(uuid())
+  firstName          String
+  lastName           String
+  documentId         String    @unique
+  email              String?
+  phone              String?
+  birthDate          DateTime? @db.Date
+  address            String?
+  insurer            String?
+  affiliateNumber    String?
+  emergencyContact   String?
+  notes              String?
+  active             Boolean   @default(true)
+  coverage           Coverage  @default(particular)
+  copay              Int       @default(0)
+  appointmentBalance Int       @default(0)
+  supplyBalance      Int       @default(0)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 }
 
 model Professional {
@@ -179,12 +175,12 @@ model Appointment {
 }
 
 model WaitlistEntry {
-  id                    String    @id @default(uuid())
+  id                    String   @id @default(uuid())
   patientId             String
   professionalId        String
   branchId              String
   day                   String
-  createdAt             DateTime  @default(now())
+  createdAt             DateTime @default(now())
   promotedAppointmentId String?
 
   @@index([professionalId, branchId, day, createdAt])
@@ -192,13 +188,15 @@ model WaitlistEntry {
 
 model BinnacleRecord {
   id            String       @id @default(uuid())
-  appointmentId String
+  appointmentId String?
+  admissionId   String?
   authorName    String
   text          String
   kind          BinnacleKind @default(agenda)
   createdAt     DateTime     @default(now())
 
   @@index([appointmentId, createdAt])
+  @@index([admissionId, createdAt])
 }
 
 model TriageEntry {
@@ -213,17 +211,20 @@ model TriageEntry {
 
 model VitalSign {
   id                 String   @id @default(uuid())
-  appointmentId      String
+  admissionId        String
   patientId          String
   sistolica          Int
   diastolica         Int
   frecuenciaCardiaca Int
   temperatura        Float
   fueraDeRango       Boolean
+  notes              String?
+  authorUserId       String
   authorName         String
   createdAt          DateTime @default(now())
 
-  @@index([appointmentId, createdAt])
+  @@index([admissionId, createdAt])
+  @@index([patientId, createdAt])
 }
 
 model Prescription {
@@ -240,33 +241,61 @@ model Prescription {
 model DoseAdministration {
   id             String   @id @default(uuid())
   indicacionId   String
-  appointmentId  String
+  admissionId    String
   horaIndicada   DateTime
   administradaEn DateTime
+  authorUserId   String
   authorName     String
   createdAt      DateTime @default(now())
 
   @@index([indicacionId, horaIndicada])
+  @@index([admissionId])
+}
+
+model Wing {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  code        Int      @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Bed {
-  id        String    @id @default(uuid())
-  number    String    @unique
-  status    BedStatus @default(libre)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id         String    @id @default(uuid())
+  number     String    @unique
+  wingId     String
+  sala       String?
+  habitacion String?
+  status     BedStatus @default(disponible)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([wingId, status])
+}
+
+model Protocol {
+  id        String   @id @default(uuid())
+  reason    String   @unique
+  tasks     String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Admission {
-  id            String          @id @default(uuid())
-  patientId     String
-  bedId         String
-  reason        AdmissionReason
-  protocolTasks String[]
-  admittedAt    DateTime        @default(now())
-  dischargedAt  DateTime?
+  id                     String    @id @default(uuid())
+  patientId              String
+  bedId                  String
+  reason                 String?
+  protocolTasks          String[]
+  diagnosis              String?
+  treatingProfessionalId String?
+  notes                  String?
+  admittedAt             DateTime  @default(now())
+  dischargedAt           DateTime?
 
   @@index([patientId, dischargedAt])
+  @@index([bedId, dischargedAt])
 }
 
 model Supply {

@@ -17,7 +17,7 @@ export type AppointmentNotification = {
 export type GuardAlert = {
   type: 'guardia';
   patientId: string;
-  branchId: string;
+  branchId?: string;
   message: string;
 };
 

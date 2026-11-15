@@ -53,9 +53,10 @@ Las columnas nuevas de `User`, `Specialty`, `Patient`, `Professional` y `Availab
 | F4 | `GET /api/v1/professionals/:id/agenda?from=&to=` | `200` y array |
 | F5 | Tras cancelar: `GET /api/v1/binnacle/:appointmentId` | `200` y nota `Canceló el turno` |
 | A5 | `POST /api/v1/triage` con `level: "rojo"` y después `GET /api/v1/triage?branchId=` | `201` en el alta; `200` y el rojo primero en la cola |
-| B1 | `POST /api/v1/appointments/:id/vitals` sobre un turno existente | `201` y un `VitalSign` |
-| B2, C3 | `POST /api/v1/patients/:id/prescriptions` (profesional) y después `POST /api/v1/appointments/:id/doses` (enfermero) dentro de ±30 minutos | `201` en ambos y `stockRestante` uno menos |
-| C1, B3 | `POST /api/v1/admissions` con una cama `libre` | `201`, cama `ocupada`, `protocolTasks` cargado |
+| B1 | `POST /api/v1/admissions/:id/vitals` sobre una internación sin alta | `201` y un `VitalSign` |
+| B2, C3 | `POST /api/v1/patients/:id/prescriptions` (profesional) y después `POST /api/v1/admissions/:id/doses` (enfermero) dentro de ±30 minutos | `201` en ambos y `stockRestante` uno menos |
+| C1, B3 | `POST /api/v1/admissions` con una cama `libre` y `reason: "cirugia"` | `201`, cama `ocupada`, `protocolTasks` cargado (sin `reason`: vacío) |
+| B3 | `POST /api/v1/protocols` `{ "reason": "traumatismo", "tasks": ["..."] }` (profesional) | `201`; repetido, `409` |
 | C2 | `POST /api/v1/admissions/:id/discharge` y `PATCH /api/v1/beds/:id/status` `{ "status": "libre" }` | Cama `en_limpieza` y después `libre` |
 | D1 | `POST /api/v1/appointments/:id/charges` `{ "price": 15000 }` | `201` y un cargo por pagador |
 

@@ -1,0 +1,2592 @@
+{
+  "info": {
+    "name": "Turnos API — Historias A–D (Presentación)",
+    "description": "# Turnos API — Demo por historias de usuario\n\nColección para presentar el backend del hospital (Metodología).\n\n## Cómo usar\n1. Postman → **Import** → subí este JSON (y el environment si querés).\n2. API Docker: `http://localhost:3001/api/v1` (variable `baseUrl`).\n3. Corré **00 Setup → Login secretaría** (guarda el JWT).\n4. Corré **00 Setup → Cargar IDs del seed**.\n5. Presentá en orden las carpetas **A → D**.\n\n## Cuentas seed\n- `secretaria@turnos.local` / `Secretaria123!`\n- `admin@turnos.local` / `Admin123!`\n- `ana.perez@turnos.local` / `Medico123!`\n- `enfermero@turnos.local` / `Enfermero123!`\n\n## Mapa de historias\n- **A1** reserva · **A2** entreturno · **A3** lista de espera · **A4** estados · **A5** triaje\n- **B1** signos · **B2** medicación · **B3** protocolos\n- **C1** cama · **C2** limpieza/alta · **C3** stock\n- **D1** cargo consulta · **D2** cuenta insumos",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3001/api/v1"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "branchId",
+      "value": ""
+    },
+    {
+      "key": "specialtyId",
+      "value": ""
+    },
+    {
+      "key": "professionalId",
+      "value": ""
+    },
+    {
+      "key": "patientId",
+      "value": ""
+    },
+    {
+      "key": "patientId2",
+      "value": ""
+    },
+    {
+      "key": "userId",
+      "value": ""
+    },
+    {
+      "key": "appointmentId",
+      "value": ""
+    },
+    {
+      "key": "waitlistId",
+      "value": ""
+    },
+    {
+      "key": "bedId",
+      "value": ""
+    },
+    {
+      "key": "bedDisponibleId",
+      "value": ""
+    },
+    {
+      "key": "wingId",
+      "value": ""
+    },
+    {
+      "key": "admissionId",
+      "value": ""
+    },
+    {
+      "key": "supplyId",
+      "value": ""
+    },
+    {
+      "key": "prescriptionId",
+      "value": ""
+    },
+    {
+      "key": "availabilityId",
+      "value": ""
+    },
+    {
+      "key": "day",
+      "value": ""
+    },
+    {
+      "key": "slotStart",
+      "value": ""
+    },
+    {
+      "key": "slotEnd",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "00 Setup (auth + IDs seed)",
+      "description": "Arranque de la demo. Login guarda JWT. \"Cargar IDs\" toma recursos del seed para no copiar UUIDs a mano.",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Ping público + Postgres.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('OK', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login secretaría",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Reserva turnos, sala, cancela, factura e interna.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"secretaria@turnos.local\",\n  \"password\": \"Secretaria123!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body && body.accessToken) pm.collectionVariables.set('accessToken', body.accessToken);",
+                  "pm.test('Login OK', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Catálogo + permisos amplios.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@turnos.local\",\n  \"password\": \"Admin123!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body && body.accessToken) pm.collectionVariables.set('accessToken', body.accessToken);",
+                  "pm.test('Login OK', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login médico",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Marca atendido e indica medicación.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"ana.perez@turnos.local\",\n  \"password\": \"Medico123!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body && body.accessToken) pm.collectionVariables.set('accessToken', body.accessToken);",
+                  "pm.test('Login OK', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login enfermero",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Signos, dosis, triaje y alta.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"enfermero@turnos.local\",\n  \"password\": \"Enfermero123!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body && body.accessToken) pm.collectionVariables.set('accessToken', body.accessToken);",
+                  "pm.test('Login OK', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Quién soy",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "me"
+              ]
+            },
+            "description": "Payload del JWT actual."
+          }
+        },
+        {
+          "name": "Cargar IDs del seed",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/branches",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "branches"
+              ]
+            },
+            "description": "Encadena listados y guarda branchId, professionalId, patientId(s), camas, insumos, admission y un slot libre (próximo lunes 16:00 ART)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const base = pm.collectionVariables.get(\"baseUrl\");",
+                  "const token = pm.collectionVariables.get(\"accessToken\");",
+                  "const h = { Authorization: \"Bearer \" + token, Accept: \"application/json\" };",
+                  "const getJson = (p) => new Promise((resolve, reject) => {",
+                  "  pm.sendRequest({ url: base + \"/\" + p, method: \"GET\", header: h }, (err, res) => {",
+                  "    if (err) return reject(err);",
+                  "    try { resolve(res.json()); } catch (e) { reject(e); }",
+                  "  });",
+                  "});",
+                  "(async () => {",
+                  "  const branches = await getJson(\"branches\");",
+                  "  const central = (branches || []).find((b) => (b.name || \"\").toLowerCase().includes(\"central\")) || (branches || [])[0];",
+                  "  if (central) pm.collectionVariables.set(\"branchId\", central.id);",
+                  "  const specs = await getJson(\"specialties\");",
+                  "  if (specs[0]) pm.collectionVariables.set(\"specialtyId\", specs[0].id);",
+                  "  const pros = await getJson(\"professionals\");",
+                  "  if (pros[0]) pm.collectionVariables.set(\"professionalId\", pros[0].id);",
+                  "  const pats = await getJson(\"patients\");",
+                  "  if (pats[0]) pm.collectionVariables.set(\"patientId\", pats[0].id);",
+                  "  if (pats[1]) pm.collectionVariables.set(\"patientId2\", pats[1].id);",
+                  "  const beds = await getJson(\"beds\");",
+                  "  const libre = (beds || []).find((b) => b.status === \"disponible\");",
+                  "  if (libre) pm.collectionVariables.set(\"bedDisponibleId\", libre.id);",
+                  "  if (beds[0]) pm.collectionVariables.set(\"bedId\", beds[0].id);",
+                  "  const wings = await getJson(\"wings\");",
+                  "  if (wings[0]) pm.collectionVariables.set(\"wingId\", wings[0].id);",
+                  "  const supplies = await getJson(\"supplies\");",
+                  "  if (supplies[0]) pm.collectionVariables.set(\"supplyId\", supplies[0].id);",
+                  "  const adm = await getJson(\"admissions\");",
+                  "  if (adm[0]) pm.collectionVariables.set(\"admissionId\", adm[0].id);",
+                  "  const apps = await getJson(\"appointments\");",
+                  "  const prog = (apps || []).find((a) => a.status === \"programado\") || (apps || [])[0];",
+                  "  if (prog) pm.collectionVariables.set(\"appointmentId\", prog.id);",
+                  "  const pid = pm.collectionVariables.get(\"professionalId\");",
+                  "  const av = await getJson(\"availability?professionalId=\" + pid);",
+                  "  if (av[0]) pm.collectionVariables.set(\"availabilityId\", av[0].id);",
+                  "  const now = new Date();",
+                  "  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));",
+                  "  const day = d.getUTCDay();",
+                  "  const add = day === 0 ? 1 : day === 6 ? 2 : (8 - day) % 7 || 7;",
+                  "  d.setUTCDate(d.getUTCDate() + add);",
+                  "  const y = d.getUTCFullYear();",
+                  "  const m = String(d.getUTCMonth() + 1).padStart(2, \"0\");",
+                  "  const dd = String(d.getUTCDate()).padStart(2, \"0\");",
+                  "  pm.collectionVariables.set(\"day\", y + \"-\" + m + \"-\" + dd);",
+                  "  pm.collectionVariables.set(\"slotStart\", y + \"-\" + m + \"-\" + dd + \"T19:00:00.000Z\");",
+                  "  pm.collectionVariables.set(\"slotEnd\", y + \"-\" + m + \"-\" + dd + \"T19:30:00.000Z\");",
+                  "  console.log(\"IDs cargados\", {",
+                  "    branchId: pm.collectionVariables.get(\"branchId\"),",
+                  "    professionalId: pm.collectionVariables.get(\"professionalId\"),",
+                  "    patientId: pm.collectionVariables.get(\"patientId\"),",
+                  "    day: pm.collectionVariables.get(\"day\"),",
+                  "  });",
+                  "  pm.test(\"IDs cargados\", () => pm.expect(pm.collectionVariables.get(\"branchId\")).to.be.ok);",
+                  "})().catch((e) => { console.error(e); throw e; });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01 Catálogo (F2)",
+      "description": "Sedes, especialidades, profesionales, disponibilidad, pacientes, usuarios, alas y camas.",
+      "item": [
+        {
+          "name": "Sucursales",
+          "item": [
+            {
+              "name": "Listar sucursales",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/branches",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "branches"
+                  ]
+                },
+                "description": ""
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                      "  const body = pm.response.json();",
+                      "  const id = Array.isArray(body) && body[0] && body[0].id;",
+                      "  if (id) pm.collectionVariables.set('branchId', id);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Ver sucursal",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/branches/{{branchId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "branches",
+                    "{{branchId}}"
+                  ]
+                },
+                "description": ""
+              }
+            },
+            {
+              "name": "Crear sucursal",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/branches",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "branches"
+                  ]
+                },
+                "description": "",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Sucursal Demo\",\n  \"address\": \"Calle Demo 100\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Actualizar sucursal",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/branches/{{branchId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "branches",
+                    "{{branchId}}"
+                  ]
+                },
+                "description": "",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"address\": \"Calle Demo 200\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Especialidades",
+          "item": [
+            {
+              "name": "Listar especialidades",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/specialties",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "specialties"
+                  ]
+                },
+                "description": ""
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                      "  const body = pm.response.json();",
+                      "  const id = Array.isArray(body) && body[0] && body[0].id;",
+                      "  if (id) pm.collectionVariables.set('specialtyId', id);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Ver especialidad",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/specialties/{{specialtyId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "specialties",
+                    "{{specialtyId}}"
+                  ]
+                },
+                "description": ""
+              }
+            },
+            {
+              "name": "Crear especialidad",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/specialties",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "specialties"
+                  ]
+                },
+                "description": "",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Dermatología Demo\",\n  \"description\": \"Demo\",\n  \"icon\": \"bi-droplet\",\n  \"active\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Actualizar especialidad",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/specialties/{{specialtyId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "specialties",
+                    "{{specialtyId}}"
+                  ]
+                },
+                "description": "",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"Actualizada\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Eliminar especialidad",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/specialties/{{specialtyId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "specialties",
+                    "{{specialtyId}}"
+                  ]
+                },
+                "description": "Solo si no tiene médicos asociados."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Profesionales",
+          "item": [
+            {
+              "name": "Listar profesionales",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/professionals",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "professionals"
+                  ]
+                },
+                "description": ""
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                      "  const body = pm.response.json();",
+                      "  const id = Array.isArray(body) && body[0] && body[0].id;",
+                      "  if (id) pm.collectionVariables.set('professionalId', id);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Ver profesional",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/professionals/{{professionalId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "professionals",
+                    "{{professionalId}}"
+                  ]
+                },
+                "description": ""
+              }
+            },
+            {
+              "name": "Crear profesional",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/professionals",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "professionals"
+                  ]
+                },
+                "description": "",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"firstName\": \"Demo\",\n  \"lastName\": \"Médico\",\n  \"specialtyIds\": [\n    \"{{specialtyId}}\"\n  ],\n  \"branchIds\": [\n    \"{{branchId}}\"\n  ],\n  \"licenseNumber\": \"MN-DEMO\",\n  \"status\": \"activo\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Actualizar profesional",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/professionals/{{professionalId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "professionals",
+                    "{{professionalId}}"
+                  ]
+                },
+                "description": "",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"office\": \"Consultorio 9\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Agenda del profesional",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/professionals/{{professionalId}}/agenda?from={{slotStart}}&to={{slotEnd}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "professionals",
+                    "{{professionalId}}",
+                    "agenda"
+                  ],
+                  "query": [
+                    {
+                      "key": "from",
+                      "value": "{{slotStart}}"
+                    },
+                    {
+                      "key": "to",
+                      "value": "{{slotEnd}}"
+                    }
+                  ]
+                },
+                "description": ""
+              }
+            }
+          ]
+        },
+        {
+          "name": "Disponibilidad",
+          "item": [
+            {
+              "name": "Listar franjas",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/availability?professionalId={{professionalId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "availability"
+                  ],
+                  "query": [
+                    {
+                      "key": "professionalId",
+                      "value": "{{professionalId}}"
+                    }
+                  ]
+                },
+                "description": ""
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                      "  const body = pm.response.json();",
+                      "  const id = Array.isArray(body) && body[0] && body[0].id;",
+                      "  if (id) pm.collectionVariables.set('availabilityId', id);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Crear franja",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/availability",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "availability"
+                  ]
+                },
+                "description": "",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"professionalId\": \"{{professionalId}}\",\n  \"branchId\": \"{{branchId}}\",\n  \"weekday\": 1,\n  \"startTime\": \"09:00\",\n  \"endTime\": \"13:00\",\n  \"slotMinutes\": 30,\n  \"modality\": \"presencial\",\n  \"status\": \"activo\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Actualizar franja",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/availability/{{availabilityId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "availability",
+                    "{{availabilityId}}"
+                  ]
+                },
+                "description": "",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"endTime\": \"13:30\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pacientes",
+          "item": [
+            {
+              "name": "Listar pacientes",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/patients",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "patients"
+                  ]
+                },
+                "description": ""
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 200) {",
+                      "  const body = pm.response.json();",
+                      "  if (body[0]) pm.collectionVariables.set(\"patientId\", body[0].id);",
+                      "  if (body[1]) pm.collectionVariables.set(\"patientId2\", body[1].id);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Ver paciente",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/patients/{{patientId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "patients",
+                    "{{patientId}}"
+                  ]
+                },
+                "description": ""
+              }
+            },
+            {
+              "name": "Crear paciente",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/patients",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "patients"
+                  ]
+                },
+                "description": "",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"firstName\": \"Presentacion\",\n  \"lastName\": \"Demo\",\n  \"documentId\": \"45999888\",\n  \"coverage\": \"particular\",\n  \"phone\": \"1100000000\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                      "  const body = pm.response.json();",
+                      "  const id = body && body.id;",
+                      "  if (id) pm.collectionVariables.set('patientId', id);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Actualizar paciente",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/patients/{{patientId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "patients",
+                    "{{patientId}}"
+                  ]
+                },
+                "description": "",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"phone\": \"1199999999\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Usuarios",
+          "item": [
+            {
+              "name": "Listar usuarios",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/users",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "users"
+                  ]
+                },
+                "description": ""
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                      "  const body = pm.response.json();",
+                      "  const id = Array.isArray(body) && body[0] && body[0].id;",
+                      "  if (id) pm.collectionVariables.set('userId', id);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Crear usuario",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/users",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "users"
+                  ]
+                },
+                "description": "",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"demo.user@turnos.local\",\n  \"password\": \"Demo1234!\",\n  \"name\": \"Usuario Demo\",\n  \"role\": \"secretaria\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Actualizar usuario",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/users/{{userId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "users",
+                    "{{userId}}"
+                  ]
+                },
+                "description": "",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"active\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Alas y camas",
+          "item": [
+            {
+              "name": "Listar alas",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/wings",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "wings"
+                  ]
+                },
+                "description": ""
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                      "  const body = pm.response.json();",
+                      "  const id = Array.isArray(body) && body[0] && body[0].id;",
+                      "  if (id) pm.collectionVariables.set('wingId', id);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Crear ala",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/wings",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "wings"
+                  ]
+                },
+                "description": "",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Ala Demo\",\n  \"code\": 9,\n  \"description\": \"Demo presentación\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Listar camas",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/beds",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "beds"
+                  ]
+                },
+                "description": ""
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 200) {",
+                      "  const body = pm.response.json();",
+                      "  const libre = (body || []).find((b) => b.status === \"disponible\");",
+                      "  if (libre) pm.collectionVariables.set(\"bedDisponibleId\", libre.id);",
+                      "  if (body[0]) pm.collectionVariables.set(\"bedId\", body[0].id);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Crear cama",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/beds",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "beds"
+                  ]
+                },
+                "description": "",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"wingId\": \"{{wingId}}\",\n  \"sala\": \"Demo\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                      "  const body = pm.response.json();",
+                      "  const id = body && body.id;",
+                      "  if (id) pm.collectionVariables.set('bedDisponibleId', id);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "A — Admisión",
+      "description": "Historias A1–A5: reserva, entreturno, lista de espera, estados y triaje.",
+      "item": [
+        {
+          "name": "A1 — Reserva de turno seguro",
+          "description": "POST /appointments sin entreturno. Libre → programado. Carrera serializable → 409.",
+          "item": [
+            {
+              "name": "A1 Reservar turno (programado)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/appointments",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "appointments"
+                  ]
+                },
+                "description": "Usá slotStart/slotEnd del Setup (próximo lunes 16:00 ART = 19:00Z). Login secretaría/admin.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"patientId\": \"{{patientId}}\",\n  \"professionalId\": \"{{professionalId}}\",\n  \"branchId\": \"{{branchId}}\",\n  \"startAt\": \"{{slotStart}}\",\n  \"endAt\": \"{{slotEnd}}\",\n  \"notes\": \"Demo A1 presentación\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const body = pm.response.json();",
+                      "pm.test(\"Programado o waitlist\", () => {",
+                      "  pm.expect([\"programado\", \"lista_de_espera\"]).to.include(body.result);",
+                      "});",
+                      "if (body.result === \"programado\" && body.appointment) {",
+                      "  pm.collectionVariables.set(\"appointmentId\", body.appointment.id);",
+                      "} else if (body.waitlist) {",
+                      "  pm.collectionVariables.set(\"waitlistId\", body.waitlist.id);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Listar turnos",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/appointments?professionalId={{professionalId}}&from={{slotStart}}&to={{slotEnd}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "appointments"
+                  ],
+                  "query": [
+                    {
+                      "key": "professionalId",
+                      "value": "{{professionalId}}"
+                    },
+                    {
+                      "key": "from",
+                      "value": "{{slotStart}}"
+                    },
+                    {
+                      "key": "to",
+                      "value": "{{slotEnd}}"
+                    }
+                  ]
+                },
+                "description": ""
+              }
+            },
+            {
+              "name": "Ver turno",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/appointments/{{appointmentId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "appointments",
+                    "{{appointmentId}}"
+                  ]
+                },
+                "description": ""
+              }
+            },
+            {
+              "name": "Bitácora del turno",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/binnacle/{{appointmentId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "binnacle",
+                    "{{appointmentId}}"
+                  ]
+                },
+                "description": ""
+              }
+            }
+          ]
+        },
+        {
+          "name": "A2 — Entreturno",
+          "description": "entreturno:true. Inicio :15 o :45 en CLINIC_TZ. Acorta el turno en curso.",
+          "item": [
+            {
+              "name": "A2 Insertar entreturno",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/appointments",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "appointments"
+                  ]
+                },
+                "description": "Requiere turno activo que cubra el instante. Ej: 16:00–16:30 y entreturno 16:15–16:30 (19:15–19:30Z).",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"patientId\": \"{{patientId2}}\",\n  \"professionalId\": \"{{professionalId}}\",\n  \"branchId\": \"{{branchId}}\",\n  \"startAt\": \"{{day}}T19:15:00.000Z\",\n  \"endAt\": \"{{day}}T19:30:00.000Z\",\n  \"entreturno\": true,\n  \"notes\": \"Demo A2 entreturno\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const body = pm.response.json();",
+                      "if (body.appointment) pm.collectionVariables.set(\"appointmentId\", body.appointment.id);"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "A3 — Lista de espera",
+          "description": "Hueco ocupado → encola. Cancelar → promueve. GET /appointments/waitlist.",
+          "item": [
+            {
+              "name": "A3 Intentar mismo horario (→ waitlist)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/appointments",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "appointments"
+                  ]
+                },
+                "description": "Mismo slotStart/slotEnd de A1 con otro paciente → result lista_de_espera.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"patientId\": \"{{patientId2}}\",\n  \"professionalId\": \"{{professionalId}}\",\n  \"branchId\": \"{{branchId}}\",\n  \"startAt\": \"{{slotStart}}\",\n  \"endAt\": \"{{slotEnd}}\",\n  \"notes\": \"Demo A3 waitlist\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const body = pm.response.json();",
+                      "if (body.waitlist) pm.collectionVariables.set(\"waitlistId\", body.waitlist.id);",
+                      "pm.test(\"Respondió result\", () => pm.expect(body.result).to.be.ok);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "A3 Listar lista de espera",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/appointments/waitlist?day={{day}}&professionalId={{professionalId}}&branchId={{branchId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "appointments",
+                    "waitlist"
+                  ],
+                  "query": [
+                    {
+                      "key": "day",
+                      "value": "{{day}}"
+                    },
+                    {
+                      "key": "professionalId",
+                      "value": "{{professionalId}}"
+                    },
+                    {
+                      "key": "branchId",
+                      "value": "{{branchId}}"
+                    }
+                  ]
+                },
+                "description": "Solo pendientes (sin promotedAppointmentId)."
+              }
+            },
+            {
+              "name": "A3 Cancelar hueco (promueve waitlist)",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/appointments/{{appointmentId}}/cancel",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "appointments",
+                    "{{appointmentId}}",
+                    "cancel"
+                  ]
+                },
+                "description": "Cancela el ocupado; el primero de la cola queda programado."
+              }
+            }
+          ]
+        },
+        {
+          "name": "A4 — Estados de atención",
+          "description": "programado → en_sala_de_espera → atendido. cancelado desde los dos primeros.",
+          "item": [
+            {
+              "name": "A4 Pasar a sala de espera",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/appointments/{{appointmentId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "appointments",
+                    "{{appointmentId}}"
+                  ]
+                },
+                "description": "Secretaría/admin. Log: avisar al consultorio.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"en_sala_de_espera\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "A4 Marcar atendido",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/appointments/{{appointmentId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "appointments",
+                    "{{appointmentId}}"
+                  ]
+                },
+                "description": "Médico/admin. Solo desde en_sala_de_espera.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"atendido\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "A4 Cancelar turno",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/appointments/{{appointmentId}}/cancel",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "appointments",
+                    "{{appointmentId}}",
+                    "cancel"
+                  ]
+                },
+                "description": "Desde programado o en_sala. Puede promover waitlist."
+              }
+            }
+          ]
+        },
+        {
+          "name": "A5 — Triaje de guardia",
+          "description": "Clasifica sin crear turno. Orden: rojo → amarillo → verde; a igual nivel, llegada.",
+          "item": [
+            {
+              "name": "A5 Clasificar rojo",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/triage",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "triage"
+                  ]
+                },
+                "description": "Riesgo vital → log [guardia].",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"patientId\": \"{{patientId}}\",\n  \"branchId\": \"{{branchId}}\",\n  \"level\": \"rojo\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "A5 Clasificar amarillo",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/triage",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "triage"
+                  ]
+                },
+                "description": "",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"patientId\": \"{{patientId2}}\",\n  \"branchId\": \"{{branchId}}\",\n  \"level\": \"amarillo\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "A5 Clasificar verde",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/triage",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "triage"
+                  ]
+                },
+                "description": "",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"patientId\": \"{{patientId}}\",\n  \"branchId\": \"{{branchId}}\",\n  \"level\": \"verde\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "A5 Cola de triaje",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/triage?branchId={{branchId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "triage"
+                  ],
+                  "query": [
+                    {
+                      "key": "branchId",
+                      "value": "{{branchId}}"
+                    }
+                  ]
+                },
+                "description": ""
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "B — Atención",
+      "description": "B1 signos · B2 indicación + dosis · B3 protocolos.",
+      "item": [
+        {
+          "name": "B1 — Signos vitales",
+          "description": "Sobre internación activa. >39 °C → fueraDeRango + log guardia.",
+          "item": [
+            {
+              "name": "Listar internaciones activas",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admissions",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admissions"
+                  ]
+                },
+                "description": ""
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                      "  const body = pm.response.json();",
+                      "  const id = Array.isArray(body) && body[0] && body[0].id;",
+                      "  if (id) pm.collectionVariables.set('admissionId', id);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Internación por paciente",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admissions/by-patient/{{patientId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admissions",
+                    "by-patient",
+                    "{{patientId}}"
+                  ]
+                },
+                "description": ""
+              }
+            },
+            {
+              "name": "B1 Signos en rango",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admissions/{{admissionId}}/vitals",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admissions",
+                    "{{admissionId}}",
+                    "vitals"
+                  ]
+                },
+                "description": "",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sistolica\": 120,\n  \"diastolica\": 80,\n  \"frecuenciaCardiaca\": 72,\n  \"temperatura\": 36.8,\n  \"notes\": \"Control OK\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "B1 Signos con fiebre",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admissions/{{admissionId}}/vitals",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admissions",
+                    "{{admissionId}}",
+                    "vitals"
+                  ]
+                },
+                "description": "temperatura > 39 → fueraDeRango true.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sistolica\": 130,\n  \"diastolica\": 85,\n  \"frecuenciaCardiaca\": 98,\n  \"temperatura\": 39.4,\n  \"notes\": \"Fiebre\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Listar signos de la internación",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admissions/{{admissionId}}/vitals",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admissions",
+                    "{{admissionId}}",
+                    "vitals"
+                  ]
+                },
+                "description": ""
+              }
+            },
+            {
+              "name": "Listar signos del paciente",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/patients/{{patientId}}/vitals",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "patients",
+                    "{{patientId}}",
+                    "vitals"
+                  ]
+                },
+                "description": ""
+              }
+            },
+            {
+              "name": "Bitácora de la internación",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/binnacle/admissions/{{admissionId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "binnacle",
+                    "admissions",
+                    "{{admissionId}}"
+                  ]
+                },
+                "description": ""
+              }
+            }
+          ]
+        },
+        {
+          "name": "B2 — Medicación prescrita",
+          "description": "Médico indica. Enfermero administra (±30 min). Dispara C3 y D2.",
+          "item": [
+            {
+              "name": "B2 Crear indicación",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/patients/{{patientId}}/prescriptions",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "patients",
+                    "{{patientId}}",
+                    "prescriptions"
+                  ]
+                },
+                "description": "Login médico/admin. Body: supplyId, dosis, cadaHoras.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"supplyId\": \"{{supplyId}}\",\n  \"dosis\": \"1 comprimido\",\n  \"cadaHoras\": 8\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                      "  const body = pm.response.json();",
+                      "  const id = body && body.id;",
+                      "  if (id) pm.collectionVariables.set('prescriptionId', id);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Listar indicaciones del paciente",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/patients/{{patientId}}/prescriptions",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "patients",
+                    "{{patientId}}",
+                    "prescriptions"
+                  ]
+                },
+                "description": ""
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                      "  const body = pm.response.json();",
+                      "  const id = Array.isArray(body) && body[0] && body[0].id;",
+                      "  if (id) pm.collectionVariables.set('prescriptionId', id);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "B2 Administrar dosis",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admissions/{{admissionId}}/doses",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admissions",
+                    "{{admissionId}}",
+                    "doses"
+                  ]
+                },
+                "description": "Login enfermero. Descuenta stock (C3) y agrega línea a la cuenta (D2). horaIndicada debe estar a ±30 min de ahora.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"prescriptionId\": \"{{prescriptionId}}\",\n  \"horaIndicada\": \"{{$isoTimestamp}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "B3 — Protocolos",
+          "description": "Al internar con reason se copian protocolTasks. POST /protocols crea motivos.",
+          "item": [
+            {
+              "name": "Listar protocolos",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/protocols",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "protocols"
+                  ]
+                },
+                "description": ""
+              }
+            },
+            {
+              "name": "B3 Crear protocolo",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/protocols",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "protocols"
+                  ]
+                },
+                "description": "Roles: admin o profesional.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"demo-presentacion\",\n  \"tasks\": [\n    \"Control de signos cada 4 h\",\n    \"Hidratación oral\",\n    \"Aviso a médico de guardia\"\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "C — Camas y stock",
+      "description": "C1 ocupar · C2 limpieza/bloqueo · C3 stock (vía dosis).",
+      "item": [
+        {
+          "name": "C1 — Asignación de cama",
+          "description": "Interna en cama disponible. Concurrencia → 409. Copia protocolo del reason (B3).",
+          "item": [
+            {
+              "name": "C1 Internar paciente",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admissions",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admissions"
+                  ]
+                },
+                "description": "",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"patientId\": \"{{patientId2}}\",\n  \"bedId\": \"{{bedDisponibleId}}\",\n  \"reason\": \"respiratorio\",\n  \"diagnosis\": \"Demo presentación C1\",\n  \"treatingProfessionalId\": \"{{professionalId}}\",\n  \"notes\": \"Ingreso demo\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const body = pm.response.json();",
+                      "if (body && body.id) pm.collectionVariables.set(\"admissionId\", body.id);",
+                      "if (body && body.bedId) pm.collectionVariables.set(\"bedId\", body.bedId);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Listar internaciones",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admissions",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admissions"
+                  ]
+                },
+                "description": ""
+              }
+            },
+            {
+              "name": "Ver internación",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admissions/{{admissionId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admissions",
+                    "{{admissionId}}"
+                  ]
+                },
+                "description": ""
+              }
+            }
+          ]
+        },
+        {
+          "name": "C2 — Higiene y mantenimiento",
+          "description": "Alta → cama en_limpieza. PATCH status → disponible o bloqueada.",
+          "item": [
+            {
+              "name": "C2 Dar alta",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admissions/{{admissionId}}/discharge",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admissions",
+                    "{{admissionId}}",
+                    "discharge"
+                  ]
+                },
+                "description": "Admin, secretaría o enfermero."
+              }
+            },
+            {
+              "name": "C2 Confirmar limpieza (disponible)",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/beds/{{bedId}}/status",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "beds",
+                    "{{bedId}}",
+                    "status"
+                  ]
+                },
+                "description": "",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"disponible\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "C2 Bloquear cama",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/beds/{{bedId}}/status",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "beds",
+                    "{{bedId}}",
+                    "status"
+                  ]
+                },
+                "description": "",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"bloqueada\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Actualizar cama",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/beds/{{bedId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "beds",
+                    "{{bedId}}"
+                  ]
+                },
+                "description": "",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sala\": \"UCI Demo\",\n  \"habitacion\": \"901\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "C3 — Stock de insumos",
+          "description": "El −1 ocurre al administrar la dosis (B2). Acá se consulta y se repone.",
+          "item": [
+            {
+              "name": "Listar insumos",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/supplies",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "supplies"
+                  ]
+                },
+                "description": ""
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                      "  const body = pm.response.json();",
+                      "  const id = Array.isArray(body) && body[0] && body[0].id;",
+                      "  if (id) pm.collectionVariables.set('supplyId', id);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Crear insumo",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/supplies",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "supplies"
+                  ]
+                },
+                "description": "",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Paracetamol 500 mg Demo\",\n  \"stock\": 100,\n  \"price\": 500\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Actualizar / reponer stock",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/supplies/{{supplyId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "supplies",
+                    "{{supplyId}}"
+                  ]
+                },
+                "description": "",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"stock\": 120,\n  \"price\": 550\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "D — Facturación",
+      "description": "D1 cargo de consulta por cobertura · D2 cuenta de insumos · pago de saldos.",
+      "item": [
+        {
+          "name": "D1 — Cargo de consulta",
+          "description": "Reparte el precio entre paciente / Estado / prepaga según coverage.",
+          "item": [
+            {
+              "name": "D1 Facturar consulta",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/appointments/{{appointmentId}}/charges",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "appointments",
+                    "{{appointmentId}}",
+                    "charges"
+                  ]
+                },
+                "description": "Si ya estaba facturada → 409.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"price\": 15000\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "D2 — Cuenta de la estadía",
+          "description": "Líneas de insumos ligadas a dosis + pago de saldos.",
+          "item": [
+            {
+              "name": "D2 Ver cuenta de internación",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admissions/{{admissionId}}/account",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admissions",
+                    "{{admissionId}}",
+                    "account"
+                  ]
+                },
+                "description": ""
+              }
+            },
+            {
+              "name": "Pagar saldos del paciente",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/patients/{{patientId}}/pay",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "patients",
+                    "{{patientId}}",
+                    "pay"
+                  ]
+                },
+                "description": "Pone appointmentBalance y supplyBalance en 0.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

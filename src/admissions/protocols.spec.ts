@@ -1,8 +1,8 @@
-import { buildProtocol } from './protocols';
+import { DEFAULT_PROTOCOLS, normalizeReason } from './protocols';
 
-describe('buildProtocol', () => {
+describe('DEFAULT_PROTOCOLS', () => {
   it('cirugía arma el protocolo pre-quirúrgico', () => {
-    expect(buildProtocol('cirugia')).toEqual([
+    expect(DEFAULT_PROTOCOLS.cirugia).toEqual([
       'Verificar ayuno de 8 horas',
       'Colocar vía intravenosa periférica',
       'Signos vitales cada 2 horas',
@@ -10,14 +10,19 @@ describe('buildProtocol', () => {
   });
 
   it('respiratorio pide saturación y aislamiento', () => {
-    expect(buildProtocol('respiratorio')).toEqual([
+    expect(DEFAULT_PROTOCOLS.respiratorio).toEqual([
       'Monitoreo continuo de saturación',
       'Aislamiento de contacto y gotas',
     ]);
   });
+});
 
-  it('devuelve una copia que no altera el protocolo base', () => {
-    buildProtocol('pediatria').push('extra');
-    expect(buildProtocol('pediatria')).toHaveLength(3);
+describe('normalizeReason', () => {
+  it('compara motivos sin espacios ni mayúsculas', () => {
+    expect(normalizeReason('  Traumatismo ')).toBe('traumatismo');
+  });
+
+  it('deja pasar lo que no es texto para que lo rechace la validación', () => {
+    expect(normalizeReason(3)).toBe(3);
   });
 });

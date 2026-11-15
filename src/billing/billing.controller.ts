@@ -26,4 +26,9 @@ export class BillingController {
   stayAccount(@Param('id') id: string) {
     return this.billing.stayAccount(id);
   }
+
+  @Post('patients/:id/pay')
+  clearBalances(@Param('id') id: string) {
+    return this.billing.clearBalances(id);
+  }
 }

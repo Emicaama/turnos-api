@@ -81,17 +81,19 @@ Entrypoint / evidencia: [`src/triage/triage.controller.ts`](../src/triage/triage
 
 ### B1 y B2 — Signos y medicación
 
-1. Con un turno ya creado (F3) y el login del enfermero (`enfermero@turnos.local` / `Enfermero123!`) o del admin.
-2. `POST /api/v1/appointments/:id/vitals` con `{ sistolica, diastolica, frecuenciaCardiaca, temperatura }`. Hasta 39 °C la bitácora anota «El control de signos salió bien». Si la temperatura lo supera, `fueraDeRango` es true y el log `[guardia]` avisa.
-3. Como profesional o admin: `POST /api/v1/patients/:patientId/prescriptions` con `{ supplyId, dosis, cadaHoras }`. El `supplyId` sale de `GET /api/v1/supplies`.
-4. Como enfermero: `POST /api/v1/appointments/:id/doses` con `{ indicacionId, horaIndicada, administradaEn }`. Entra solo si `administradaEn` está a ±30 minutos de `horaIndicada`. Si no, `400`. La nota queda con `kind: "medicacion"` y el nombre de quien la dio.
-5. La dosis descuenta 1 unidad del insumo (`stockRestante` en la respuesta). Sin stock, `409`.
+1. Con una internación sin alta (C1; `GET /api/v1/admissions` lista las activas) y el login del enfermero (`enfermero@turnos.local` / `Enfermero123!`) o del admin.
+2. `POST /api/v1/admissions/:id/vitals` con `{ sistolica, diastolica, frecuenciaCardiaca, temperatura }`. Hasta 39 °C la bitácora de la internación anota «El control de signos salió bien». Si la temperatura lo supera, `fueraDeRango` es true y el log `[guardia]` avisa con el número de cama. Internación inexistente → `404`; con alta → `400`.
+3. Como profesional o admin: `POST /api/v1/patients/:patientId/prescriptions` con `{ supplyId, dosis, cadaHoras }` para el paciente internado. El `supplyId` sale de `GET /api/v1/supplies`.
+4. Como enfermero: `POST /api/v1/admissions/:id/doses` con `{ indicacionId, horaIndicada, administradaEn }`. Entra solo si `administradaEn` está a ±30 minutos de `horaIndicada`. Si no, `400`. La nota queda con `kind: "medicacion"` y el nombre de quien la dio.
+5. La dosis descuenta 1 unidad del insumo (`stockRestante` en la respuesta) y carga la cuenta de la estadía. Sin stock, `409`.
+6. Las notas se leen con `GET /api/v1/binnacle/admissions/:id?kind=`.
 Entrypoint / evidencia: [`src/nursing/nursing.controller.ts`](../src/nursing/nursing.controller.ts), [`src/nursing/nursing.ts`](../src/nursing/nursing.ts)
 
 ### B3, C1 y C2 — Internación y camas
 
 1. Como secretaría o admin, `GET /api/v1/beds` para ver las camas `libre`.
-2. `POST /api/v1/admissions` con `{ patientId, bedId, reason }` (`cirugia`, `respiratorio` o `pediatria`). Resultado: `201`, la cama queda `ocupada` y la internación trae `protocolTasks`. Cama no libre o paciente ya internado → `409`.
+2. `POST /api/v1/admissions` con `{ patientId, bedId, reason? }`. `reason` es opcional y de texto libre. Resultado: `201`, la cama queda `ocupada` y la internación trae `protocolTasks` con las tareas del protocolo de ese motivo, o vacío si no hay motivo o protocolo. Cama no libre o paciente ya internado → `409`.
+   Protocolos: `GET /api/v1/protocols` los lista (el seed trae `cirugia`, `respiratorio` y `pediatria`). Como profesional o admin, `POST /api/v1/protocols` con `{ reason, tasks: [...] }` crea uno; si el motivo ya existe → `409`.
 3. Alta: `POST /api/v1/admissions/:id/discharge`. La cama pasa a `en_limpieza` y no admite a nadie.
 4. Como enfermero o admin, `PATCH /api/v1/beds/:id/status` con `{ "status": "libre" }` cuando la limpieza terminó. `libre` ↔ `bloqueada` para mantenimiento.
 Entrypoint / evidencia: [`src/admissions/admissions.service.ts`](../src/admissions/admissions.service.ts), [`src/beds/bed-status.ts`](../src/beds/bed-status.ts)
@@ -100,8 +102,9 @@ Entrypoint / evidencia: [`src/admissions/admissions.service.ts`](../src/admissio
 
 1. Admin carga o repone insumos con `POST /api/v1/supplies` y `PATCH /api/v1/supplies/:id`.
 2. Cobertura: `PATCH /api/v1/patients/:id` con `{ "coverage": "prepaga", "copay": 3000 }`.
-3. Facturar la consulta: `POST /api/v1/appointments/:id/charges` con `{ "price": 15000 }`. Prepaga con copago 3000 → paciente 3000 y prepaga 12000. Pública → paciente 0 y Estado 15000. Segunda vez → `409`.
-4. Si el paciente está internado, cada dosis suma «Insumos de Farmacia» a `GET /api/v1/admissions/:id/account`.
+3. Facturar la consulta: `POST /api/v1/appointments/:id/charges` con `{ "price": 15000 }`. Prepaga con copago 3000 → paciente 3000 y prepaga 12000. Pública → paciente 0 y Estado 15000. Segunda vez → `409`. La parte del paciente se suma a su `appointmentBalance`.
+4. Cada dosis de una internación suma «Insumos de Farmacia» a `GET /api/v1/admissions/:id/account` y el precio al `supplyBalance` del paciente.
+5. `GET /api/v1/patients/:id` muestra los dos saldos por separado: consultas (`appointmentBalance`) e insumos (`supplyBalance`).
 Entrypoint / evidencia: [`src/billing/coverage.ts`](../src/billing/coverage.ts), [`src/billing/billing.service.ts`](../src/billing/billing.service.ts)
 
 ## Scripts útiles (por flujo)

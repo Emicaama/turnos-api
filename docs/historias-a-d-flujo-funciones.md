@@ -22,8 +22,9 @@
    │ B3 protocolo        │     │ C3 stock − 1        │     │                     │
    └──────────┬──────────┘     └──────────▲──────────┘     └──────────▲──────────┘
               │                           │                            │
-              └──── dosis ────────────────┴──── si está internado ─────┘
-                    (B2 llama a C3 y, si hay estadía, a D2)
+              └──── dosis ────────────────┴──── cuenta de la estadía ──┘
+                    (B1 y B2 cuelgan de la internación de C1;
+                     B2 llama a C3 y a D2)
                     (B3 y C1 salen juntos del POST de internación)
 ```
 
@@ -107,7 +108,7 @@ No toca el turno que empieza cuando ese termina.
 
 ## A3 — Lista de espera
 
-Dos entradas. No hay un endpoint propio de la lista.
+Dos entradas al escribir. Lectura: `GET /api/v1/appointments/waitlist` (filtros opcionales `day`, `professionalId`, `branchId`; solo pendientes sin `promotedAppointmentId`).
 
 ```
         POST /appointments                         POST /appointments/:id/cancel
@@ -214,37 +215,47 @@ La cola no cierra a nadie: no existe un estado de "ya atendido" en el triaje.
 
 ## B1 — Signos vitales
 
-`POST /api/v1/appointments/:id/vitals`. Admin o enfermería.
-El paciente sale del turno. No hay habitación.
+`POST /api/v1/admissions/:id/vitals`. Admin o enfermería.
+Cuelga de la internación (C1): de ahí salen el paciente y la cama.
 
-//TODO: ver que sea solo funcione cuando un paciente este en estado ingresado no en appointments sino ver como plantearlo con otra tabla de bd para las camas [(ocupado/libre)-> unida a tabla de paciente]
+```
+Patient ◄── Admission ──► Bed          dischargedAt null = internado ahora
+               ▲
+               └── VitalSign  admissionId, patientId, authorUserId
+```
 
 ```
 recordVitals                                      [nursing/nursing.service.ts]
-   ├─ turno inexistente ──► 404
-   │     (no mira el estado: también un cancelado)
+   ├─ admissions.findActive                       [admissions/admissions.service.ts]
+   │     internación inexistente ──► 404 Internación no encontrada
+   │     ya tiene alta           ──► 400 La internación ya tiene alta
    ├─ isFever  temperatura > 39                   [nursing/nursing.ts]
    │     39 justo no es fiebre
    └─ transacción
-        ├─ vitalSign.create  presión, pulso, temperatura, fueraDeRango
-        └─ bitácora kind signos
+        ├─ vitalSign.create  presión, pulso, temperatura, fueraDeRango,
+        │                    patientId de la internación, authorUserId y authorName
+        └─ addStayNote kind signos                [binnacle/binnacle-note.ts]
               en rango → "El control de signos salió bien"
               fiebre   → "Signos fuera de rango: temperatura mayor a 39 °C"
    ▼
 si fiebre, después del commit:
-   LOG guardia "Temperatura {n} °C. Avisar al médico de guardia."
+   LOG guardia "Cama {número}: temperatura {n} °C. Avisar al médico de guardia."
                                               ──► 201
+
+GET /api/v1/binnacle/admissions/:id?kind=signos   cualquier rol logueado
+   └─ internación inexistente ──► 404
 ```
 
-Presión y pulso se guardan y no disparan el aviso.
-La historia pide el control de un internado en una habitación, destacado en rojo.
-El código cuelga del turno y marca `fueraDeRango: true`. No hay color ni habitación.
+Presión y pulso se guardan y no disparan el aviso. No hay topes máximos en el DTO.
+La historia pide el registro destacado en rojo: el código marca `fueraDeRango: true`
+y el color queda para el front.
 
 ---
 
 ## B2 — Indicación y toma
 
-La indicación y la toma son dos POST. No hay un GET para ver la medicación.
+La indicación es del paciente; la toma, de su internación activa.
+`GET /api/v1/patients/:id/prescriptions` lista las indicaciones (admin, profesional o enfermería).
 //TODO: VER no se que hizo aca
 
 ```
@@ -258,26 +269,27 @@ prescribe                                         [nursing/nursing.service.ts]
          no descuenta stock, no escribe bitácora, no avisa
                                               ──► 201
 
-POST /api/v1/appointments/:id/doses
+POST /api/v1/admissions/:id/doses
    │  no es admin ni enfermería ──► 403
    ▼
 giveDose
-   ├─ turno inexistente ──► 404
-   ├─ la indicación no es de ese paciente ──► 404 Indicación no encontrada
+   ├─ admissions.findActive
+   │     internación inexistente ──► 404 · ya tiene alta ──► 400
+   ├─ la indicación no es del paciente internado ──► 404 Indicación no encontrada
    ├─ |administradaEn − horaIndicada| > 30 min
    │     ──► 400 La dosis está fuera de los 30 minutos de la hora indicada
    │          [nursing.ts isWithinDoseWindow]  (30 min justos sí pasan)
    ▼
 transacción
    ├─ 1. takeOneUnit          → C3
-   ├─ 2. doseAdministration.create  authorName = quien la dio
-   ├─ 3. bitácora kind medicacion  "Administró {insumo} {dosis} (en horario)"
-   └─ 4. chargeSupplyToActiveStay  → D2, o null si no está internado
+   ├─ 2. doseAdministration.create  admissionId, authorUserId y authorName de quien la dio
+   ├─ 3. addStayNote kind medicacion  "Administró {insumo} {dosis} (en horario)"
+   └─ 4. chargeSupplyToStay  → D2 en la cuenta de esa internación
                                               ──► 201 { dosis, stockRestante, accountLine }
 ```
 
 La historia pide ver la indicación y descontar el stock del piso.
-No hay listado de indicaciones. El stock es uno solo, no por piso (C3).
+El stock es uno solo, no por piso (C3).
 
 ---
 
@@ -297,17 +309,28 @@ transacción
    ├─ ya internado (dischargedAt null) ──► 409 El paciente ya está internado
    ├─ beds.occupy                         → C1
    └─ admission.create
-         protocolTasks = buildProtocol(reason)    [admissions/protocols.ts]
-           cirugia      → ayuno 8 h, vía periférica, signos cada 2 h
-           respiratorio → saturación continua, aislamiento de contacto y gotas
-           pediatria    → signos cada 4 h, peso y balance, acompañante
+         reason opcional, texto libre (se guarda sin espacios y en minúsculas)
+         protocolTasks = protocols.tasksFor(reason)   [admissions/protocols.service.ts]
+           sin reason o sin protocolo para ese motivo → []  (la internación se crea igual)
+           con protocolo → sus tareas
          se copia en la fila; después no se vuelve a armar
                                               ──► 201
+
+POST /api/v1/protocols  { reason, tasks[] }
+  [admissions/protocols.controller.ts]
+   │  no es admin ni profesional ──► 403
+   ├─ reason vacío o tasks vacío ──► 400
+   ├─ ya hay un protocolo para ese motivo ──► 409
+   └─ protocol.create                                ──► 201
+
+GET /api/v1/protocols   cualquier rol logueado, ordenados por motivo
 ```
 
-La historia nombra un Pre-Op Protocol Builder y uno respiratorio, y no menciona pediatría.
-El código es un mapa `reason → tareas`. No hay motivo traumatismo.
-Cirugía y respiratorio coinciden con los dos escenarios.
+Los protocolos viven en la tabla `Protocol` (motivo único → tareas).
+El seed carga `cirugia`, `respiratorio` y `pediatria` desde `DEFAULT_PROTOCOLS`
+(`admissions/protocols.ts`) en cada arranque, sin pisar los que ya existen.
+Un protocolo creado después no cambia las internaciones anteriores.
+La historia nombra un Pre-Op Protocol Builder y uno respiratorio: no hay una clase por motivo.
 
 ---
 
@@ -406,10 +429,16 @@ chargeConsultation                                [billing/billing.service.ts]
          publica    → paciente 0 + estado el precio
          prepaga    → paciente min(copago, precio) + prepaga el resto
          particular → paciente el precio
-         una fila Charge por pagador
+   ▼
+transacción
+   ├─ una fila Charge por pagador
+   └─ patient.appointmentBalance += patientShare(splits)   (solo la parte del paciente)
          (sin bitácora y sin log)
                                               ──► 201
 ```
+
+El paciente guarda dos saldos: `appointmentBalance` (consultas, D1) y `supplyBalance`
+(insumos, D2). No hay pagos: los saldos solo suben, y no se editan por `PATCH /patients`.
 
 La historia pide el patrón Strategy, una clase por cobertura.
 El código es el mapa `SPLIT_BY_COVERAGE`. Los tres repartos coinciden con la tabla
@@ -423,14 +452,13 @@ No tiene ruta de alta. La escribe el paso 4 de la dosis (B2).
 Se lee con `GET /api/v1/admissions/:id/account` (admin o secretaría).
 
 ```
-chargeSupplyToActiveStay                          [billing/billing.service.ts]
-   ├─ internación con dischargedAt null de ese paciente
-   │     no hay ──► null
-   │                (la dosis y el stock de C3 igual se guardan)
+chargeSupplyToStay                                [billing/billing.service.ts]
+   │  la internación ya la validó B2 (existe y no tiene alta)
    └─ accountLine
          concept "Insumos de Farmacia"
          amount  = price del insumo en ese momento
          doseId  único (liga la línea a la dosis)
+   └─ patient.supplyBalance += amount   (el insumo entero; no aplica la cobertura)
                                               ──► sigue dentro de la transacción de B2
 
 GET /api/v1/admissions/:id/account
@@ -460,13 +488,16 @@ falla, la dosis y el descuento también se revierten.
 | A4 cancelar | `cancelado`, y puede promover A3 | "Canceló el turno" | `cancelled` |
 | A5 rojo | `triageEntry`, sin turno | no | `guardia` |
 | A5 amarillo o verde | `triageEntry` | no | no |
-| B1 en rango | signos, `fueraDeRango` false | kind `signos`, "salió bien" | no |
-| B1 > 39 °C | signos, `fueraDeRango` true | kind `signos`, fuera de rango | `guardia` |
+| B1 en rango | signos de la internación, `fueraDeRango` false | kind `signos` en la internación, "salió bien" | no |
+| B1 > 39 °C | signos de la internación, `fueraDeRango` true | kind `signos` en la internación, fuera de rango | `guardia` con la cama |
+| B1 / B2 con alta | nada | no | no · `400` |
 | B2 indicación | `prescription` | no | no |
-| B2 toma | dosis + stock − 1 (C3); línea solo si hay internación (D2) | kind `medicacion` | no |
-| B3 + C1 | internación con `protocolTasks`; cama `ocupada` | no | no |
+| B2 toma | dosis de la internación + stock − 1 (C3) + línea en la cuenta (D2) | kind `medicacion` en la internación | no |
+| B3 + C1 | internación con `protocolTasks` (vacío sin motivo o sin protocolo); cama `ocupada` | no | no |
+| B3 protocolo | fila `Protocol` | no | no |
 | C2 alta | `dischargedAt`; cama `en_limpieza` | no | no |
 | C2 PATCH | `libre` o `bloqueada` según la transición | no | no |
 | C3 sin stock | nada (la transacción vuelve atrás) | no | no · `409` |
 | D1 | uno o dos `charge` | no | no |
-| D2 | `accountLine` "Insumos de Farmacia" ligada al `doseId` | no | no |
+| D1 saldo | `appointmentBalance` del paciente + su parte | no | no |
+| D2 | `accountLine` "Insumos de Farmacia" ligada al `doseId`; `supplyBalance` + precio | no | no |

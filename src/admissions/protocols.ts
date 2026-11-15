@@ -1,6 +1,4 @@
-import type { AdmissionReason } from '@prisma/client';
-
-const PROTOCOL_TASKS: Record<AdmissionReason, string[]> = {
+export const DEFAULT_PROTOCOLS: Record<string, string[]> = {
   cirugia: [
     'Verificar ayuno de 8 horas',
     'Colocar vía intravenosa periférica',
@@ -17,6 +15,6 @@ const PROTOCOL_TASKS: Record<AdmissionReason, string[]> = {
   ],
 };
 
-export function buildProtocol(reason: AdmissionReason): string[] {
-  return [...PROTOCOL_TASKS[reason]];
+export function normalizeReason(value: unknown): unknown {
+  return typeof value === 'string' ? value.trim().toLowerCase() : value;
 }

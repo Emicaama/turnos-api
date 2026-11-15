@@ -11,6 +11,14 @@ import { ListBinnacleQueryDto } from './dto/list-binnacle-query.dto';
 export class BinnacleController {
   constructor(private readonly binnacle: BinnacleService) {}
 
+  @Get('admissions/:admissionId')
+  listForStay(
+    @Param('admissionId') admissionId: string,
+    @Query() query: ListBinnacleQueryDto,
+  ) {
+    return this.binnacle.listForStay(admissionId, query.kind);
+  }
+
   @Get(':appointmentId')
   list(
     @Param('appointmentId') appointmentId: string,

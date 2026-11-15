@@ -2,7 +2,7 @@
 
 ## Resumen
 
-Capacidades de la API alineadas a F1–F5: identidad, catálogo clínico, control de turnos (estados, solape, disponibilidad), agenda y bitácora. También el triaje de guardia (A5), los signos y la medicación sobre un turno (B1, B2), la internación con protocolo y camas (B3, C1, C2), el stock de insumos (C3) y la facturación (D1, D2). Las notificaciones son un puerto que solo registra en log.
+Capacidades de la API alineadas a F1–F5: identidad, catálogo clínico, control de turnos (estados, solape, disponibilidad), agenda y bitácora. También el triaje de guardia (A5), los signos y la medicación sobre la internación (B1, B2), la internación con protocolo y camas (B3, C1, C2), el stock de insumos (C3) y la facturación (D1, D2). Las notificaciones son un puerto que solo registra en log.
 
 ## Capacidades por flujo
 
@@ -52,20 +52,21 @@ Capacidades de la API alineadas a F1–F5: identidad, catálogo clínico, contro
 
 ### B1 y B2 — Signos y medicación
 
-- **Signos** — `POST /appointments/:id/vitals`. Fiebre si la temperatura supera 39 °C: nota `signos` y el mismo log `[guardia]` — evidencia: [`src/nursing/nursing.ts`](../src/nursing/nursing.ts) (`isFever`, `vitalNote`)
-- **Indicación y dosis** — `POST /patients/:id/prescriptions` (profesional) y `POST /appointments/:id/doses` (enfermero). La toma entra solo a ±30 minutos — evidencia: [`src/nursing/nursing.ts`](../src/nursing/nursing.ts) (`isWithinDoseWindow`)
+- **Signos** — `POST /admissions/:id/vitals` sobre una internación sin alta. Fiebre si la temperatura supera 39 °C: nota `signos` y el mismo log `[guardia]` con la cama — evidencia: [`src/nursing/nursing.ts`](../src/nursing/nursing.ts) (`isFever`, `vitalNote`)
+- **Indicación y dosis** — `POST /patients/:id/prescriptions` (profesional) y `POST /admissions/:id/doses` (enfermero). La toma entra solo a ±30 minutos — evidencia: [`src/nursing/nursing.ts`](../src/nursing/nursing.ts) (`isWithinDoseWindow`)
 
 ### B3, C1 y C2 — Internación y camas
 
 - **Asignación segura** — update condicional `libre` → `ocupada`; la segunda asignación simultánea recibe `409` — evidencia: [`src/beds/beds.service.ts`](../src/beds/beds.service.ts) (`occupy`)
-- **Protocolo por motivo** — `cirugia`, `respiratorio`, `pediatria` — evidencia: [`src/admissions/protocols.ts`](../src/admissions/protocols.ts) (`buildProtocol`)
+- **Protocolo por motivo** — motivo opcional; sin motivo o sin protocolo, la internación queda sin tareas. `POST /protocols` crea protocolos; el seed trae `cirugia`, `respiratorio`, `pediatria` — evidencia: [`src/admissions/protocols.service.ts`](../src/admissions/protocols.service.ts) (`tasksFor`), [`src/admissions/protocols.ts`](../src/admissions/protocols.ts) (`DEFAULT_PROTOCOLS`)
 - **Alta y limpieza** — el alta deja la cama `en_limpieza`; maestranza la libera; `libre` ↔ `bloqueada` — evidencia: [`src/beds/bed-status.ts`](../src/beds/bed-status.ts) (`canChangeBedStatus`)
 
 ### C3, D1 y D2 — Stock y facturación
 
 - **Descuento atómico** — cada dosis resta 1 si `stock > 0`, en la misma transacción — evidencia: [`src/supplies/supplies.service.ts`](../src/supplies/supplies.service.ts) (`takeOneUnit`)
 - **Costo por cobertura** — pública, prepaga con copago o particular — evidencia: [`src/billing/coverage.ts`](../src/billing/coverage.ts) (`splitByCoverage`)
-- **Cargo a la estadía** — la dosis de un internado agrega «Insumos de Farmacia» con el precio vigente y su `doseId` — evidencia: [`src/billing/billing.service.ts`](../src/billing/billing.service.ts) (`chargeSupplyToActiveStay`)
+- **Cargo a la estadía** — cada dosis agrega «Insumos de Farmacia» a la cuenta de su internación, con el precio vigente y su `doseId` — evidencia: [`src/billing/billing.service.ts`](../src/billing/billing.service.ts) (`chargeSupplyToStay`)
+- **Saldo del paciente** — el paciente guarda lo que debe por consultas (`appointmentBalance`, su parte de D1) y por insumos (`supplyBalance`, D2) — evidencia: [`src/billing/coverage.ts`](../src/billing/coverage.ts) (`patientShare`), [`src/billing/billing.service.ts`](../src/billing/billing.service.ts)
 
 ## Capacidades transversales
 

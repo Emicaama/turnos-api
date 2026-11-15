@@ -12,3 +12,15 @@ export function addBinnacleNote(
     data: { appointmentId, authorName, text, kind },
   });
 }
+
+export function addStayNote(
+  db: PrismaDb,
+  admissionId: string,
+  authorName: string,
+  text: string,
+  kind: BinnacleKind,
+) {
+  return db.binnacleRecord.create({
+    data: { admissionId, authorName, text, kind },
+  });
+}

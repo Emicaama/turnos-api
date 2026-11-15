@@ -1,4 +1,4 @@
-import { IsInt, IsNumber, Min } from 'class-validator';
+import { IsInt, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateVitalsDto {
   @IsInt()
@@ -16,4 +16,8 @@ export class CreateVitalsDto {
   @IsNumber()
   @Min(0)
   temperatura: number;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
 }

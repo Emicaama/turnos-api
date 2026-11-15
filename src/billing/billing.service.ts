@@ -3,10 +3,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, Supply } from '@prisma/client';
+import { Admission, Charge, Prisma, Supply } from '@prisma/client';
 import { PatientsService } from '../patients/patients.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { splitByCoverage } from './coverage';
+import { patientShare, splitByCoverage } from './coverage';
 
 @Injectable()
 export class BillingService {
@@ -27,32 +27,47 @@ export class BillingService {
     }
     const patient = await this.patients.findById(appointment.patientId);
     const splits = splitByCoverage(patient.coverage, price, patient.copay);
-    return this.prisma.$transaction(
-      splits.map((split) =>
-        this.prisma.charge.create({ data: { appointmentId, ...split } }),
-      ),
-    );
+    return this.prisma.$transaction(async (tx) => {
+      const charges: Charge[] = [];
+      for (const split of splits) {
+        charges.push(
+          await tx.charge.create({ data: { appointmentId, ...split } }),
+        );
+      }
+      await tx.patient.update({
+        where: { id: patient.id },
+        data: { appointmentBalance: { increment: patientShare(splits) } },
+      });
+      return charges;
+    });
   }
 
-  async chargeSupplyToActiveStay(
+  async chargeSupplyToStay(
     tx: Prisma.TransactionClient,
-    patientId: string,
+    stay: Pick<Admission, 'id' | 'patientId'>,
     supply: Supply,
     doseId: string,
   ) {
-    const stay = await tx.admission.findFirst({
-      where: { patientId, dischargedAt: null },
-    });
-    if (!stay) {
-      return null;
-    }
-    return tx.accountLine.create({
+    const line = await tx.accountLine.create({
       data: {
         admissionId: stay.id,
         doseId,
         concept: 'Insumos de Farmacia',
         amount: supply.price,
       },
+    });
+    await tx.patient.update({
+      where: { id: stay.patientId },
+      data: { supplyBalance: { increment: line.amount } },
+    });
+    return line;
+  }
+
+  async clearBalances(patientId: string) {
+    await this.patients.findById(patientId);
+    return this.prisma.patient.update({
+      where: { id: patientId },
+      data: { appointmentBalance: 0, supplyBalance: 0 },
     });
   }
 

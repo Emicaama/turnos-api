@@ -19,6 +19,12 @@ const SPLIT_BY_COVERAGE: Record<Coverage, SplitRule> = {
   particular: (price) => [{ payer: 'paciente', amount: price }],
 };
 
+export function patientShare(splits: ChargeSplit[]): number {
+  return splits
+    .filter((split) => split.payer === 'paciente')
+    .reduce((sum, split) => sum + split.amount, 0);
+}
+
 export function splitByCoverage(
   coverage: Coverage,
   price: number,

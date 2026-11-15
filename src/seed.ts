@@ -3,14 +3,18 @@ import { SEED_ACCOUNTS, SeedService } from './seed/seed.service';
 import { SeedModule } from './seed/seed.module';
 
 async function main() {
+  const force = process.env.SEED_FORCE === '1';
   const app = await NestFactory.createApplicationContext(SeedModule);
   try {
-    const result = await app.get(SeedService).run();
+    const result = await app.get(SeedService).run(force);
     if (result.skipped) {
-      console.log('Seed ya estaba aplicado');
+      console.log('Seed ya estaba aplicado (usá SEED_FORCE=1 para regenerar todo)');
       return;
     }
-    console.log('Seed listo');
+    console.log(result.forced ? 'Seed forzado y regenerado' : 'Seed listo');
+    console.log(
+      `Admin: ${SEED_ACCOUNTS.admin.email} / ${SEED_ACCOUNTS.admin.password}`,
+    );
     console.log(
       `Secretaría: ${SEED_ACCOUNTS.secretaria.email} / ${SEED_ACCOUNTS.secretaria.password}`,
     );
@@ -21,13 +25,7 @@ async function main() {
       `Médicos: ana.perez, luis.gomez, carla.ruiz, diego.fernandez y elena.soto @turnos.local / ${SEED_ACCOUNTS.medicos.ana.password}`,
     );
     console.log(
-      '20 turnos del lunes 9 al viernes 13 de noviembre de 2026, uno por paciente (ART)',
-    );
-    console.log(
-      'Cama 101 libre, 204 ocupada (Gael Torres, cirugía), 205 en limpieza, 310 bloqueada',
-    );
-    console.log(
-      'Cargos de consulta en tres coberturas. Cuenta de internación: Suero fisiológico $800',
+      'Cubre: sedes, especialidades, pacientes, profesionales, agendas, turnos (hoy±), cargos, lista de espera, triaje, bitácora, alas/camas, protocolos, internaciones, signos, prescripciones, dosis, insumos y cuentas',
     );
   } finally {
     await app.close();

@@ -24,13 +24,22 @@ export class AdmissionsController {
     return this.admissions.listActive();
   }
 
+  @Get('by-patient/:patientId')
+  async findActiveByPatient(@Param('patientId') patientId: string) {
+    const stay = await this.admissions.findActiveByPatient(patientId);
+    if (!stay) {
+      return null;
+    }
+    return stay;
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.admissions.findById(id);
   }
 
   @UseGuards(RolesGuard)
-  @Roles(Role.Admin, Role.Secretaria)
+  @Roles(Role.Admin, Role.Secretaria, Role.Enfermero)
   @Post(':id/discharge')
   discharge(@Param('id') id: string) {
     return this.admissions.discharge(id);

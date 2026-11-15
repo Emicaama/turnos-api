@@ -4,7 +4,7 @@
 
 API REST NestJS con prefijo global `api/v1` ([`src/main.ts`](../src/main.ts)). Auth JWT Bearer en todas las rutas salvo las marcadas `@Public()` (solo login). `RolesGuard` global: sin `@Roles` basta estar autenticado; con `@Roles` hace falta ese rol ([`src/app.module.ts`](../src/app.module.ts)). POST Nest responde `201`. Validación: `400` si el body/query no cumple class-validator. Documentación interactiva (no es un recurso de negocio): `GET /docs`.
 
-IDs: campo `id` UUID (Prisma). Roles: `admin` | `secretaria` | `profesional` | `enfermero`. Estados de turno: `programado` | `en_sala_de_espera` | `atendido` | `cancelado`. Niveles de triaje: `rojo` | `amarillo` | `verde`. Estados de cama: `libre` | `ocupada` | `en_limpieza` | `bloqueada`. Motivos de internación: `cirugia` | `respiratorio` | `pediatria`. Coberturas: `publica` | `prepaga` | `particular`. Montos en pesos enteros.
+IDs: campo `id` UUID (Prisma). Roles: `admin` | `secretaria` | `profesional` | `enfermero`. Estados de turno: `programado` | `en_sala_de_espera` | `atendido` | `cancelado`. Niveles de triaje: `rojo` | `amarillo` | `verde`. Estados de cama: `libre` | `ocupada` | `en_limpieza` | `bloqueada`. Motivo de internación: texto libre y opcional (se guarda en minúsculas); el seed trae protocolos para `cirugia`, `respiratorio` y `pediatria`. Coberturas: `publica` | `prepaga` | `particular`. Montos en pesos enteros.
 
 `GET /api/v1/health` es público y responde `{ "status": "ok", "postgres": true }` si Postgres acepta `SELECT 1` ([`src/health/health.controller.ts`](../src/health/health.controller.ts)).
 
@@ -41,14 +41,16 @@ IDs: campo `id` UUID (Prisma). Roles: `admin` | `secretaria` | `profesional` | `
 | PATCH | `/api/v1/availability/:id` | Edita franja (horario, sala, modalidad, estado) | F2 | [`src/availability/availability.controller.ts`](../src/availability/availability.controller.ts) |
 | POST | `/api/v1/appointments` | Programa un turno o encola la lista de espera | F3 | [`src/appointments/appointments.controller.ts`](../src/appointments/appointments.controller.ts) |
 | GET | `/api/v1/appointments` | Lista/filtra turnos | F3 | [`src/appointments/appointments.controller.ts`](../src/appointments/appointments.controller.ts) |
+| GET | `/api/v1/appointments/waitlist` | Lista entradas pendientes de lista de espera | A3 | [`src/appointments/appointments.controller.ts`](../src/appointments/appointments.controller.ts) |
 | GET | `/api/v1/appointments/:id` | Obtiene un turno | F3 | [`src/appointments/appointments.controller.ts`](../src/appointments/appointments.controller.ts) |
 | PATCH | `/api/v1/appointments/:id` | Estado, notas o reprogramación | F3 | [`src/appointments/appointments.controller.ts`](../src/appointments/appointments.controller.ts) |
 | POST | `/api/v1/appointments/:id/cancel` | Cancela turno | F3 | [`src/appointments/appointments.controller.ts`](../src/appointments/appointments.controller.ts) |
-| POST | `/api/v1/appointments/:id/vitals` | Registra signos del turno | B1 | [`src/nursing/nursing.controller.ts`](../src/nursing/nursing.controller.ts) |
+| POST | `/api/v1/admissions/:id/vitals` | Registra signos de la internación | B1 | [`src/nursing/nursing.controller.ts`](../src/nursing/nursing.controller.ts) |
 | GET | `/api/v1/patients/:id/prescriptions` | Indicaciones del paciente | B2 | [`src/nursing/nursing.controller.ts`](../src/nursing/nursing.controller.ts) |
 | POST | `/api/v1/patients/:id/prescriptions` | Crea una indicación | B2 | [`src/nursing/nursing.controller.ts`](../src/nursing/nursing.controller.ts) |
-| POST | `/api/v1/appointments/:id/doses` | Marca una dosis administrada en horario | B2 | [`src/nursing/nursing.controller.ts`](../src/nursing/nursing.controller.ts) |
-| GET | `/api/v1/binnacle/:appointmentId` | Bitácora del turno | F5, B1, B2 | [`src/binnacle/binnacle.controller.ts`](../src/binnacle/binnacle.controller.ts) |
+| POST | `/api/v1/admissions/:id/doses` | Marca una dosis administrada en horario | B2 | [`src/nursing/nursing.controller.ts`](../src/nursing/nursing.controller.ts) |
+| GET | `/api/v1/binnacle/:appointmentId` | Bitácora del turno | F5 | [`src/binnacle/binnacle.controller.ts`](../src/binnacle/binnacle.controller.ts) |
+| GET | `/api/v1/binnacle/admissions/:admissionId` | Bitácora de la internación (signos y medicación) | B1, B2 | [`src/binnacle/binnacle.controller.ts`](../src/binnacle/binnacle.controller.ts) |
 | POST | `/api/v1/triage` | Clasifica un paciente en la guardia | A5 | [`src/triage/triage.controller.ts`](../src/triage/triage.controller.ts) |
 | GET | `/api/v1/triage` | Cola de guardia de una sucursal | A5 | [`src/triage/triage.controller.ts`](../src/triage/triage.controller.ts) |
 | GET | `/api/v1/supplies` | Lista insumos con stock y precio | C3 | [`src/supplies/supplies.controller.ts`](../src/supplies/supplies.controller.ts) |
@@ -57,7 +59,9 @@ IDs: campo `id` UUID (Prisma). Roles: `admin` | `secretaria` | `profesional` | `
 | GET | `/api/v1/beds` | Mapa de camas | C1, C2 | [`src/beds/beds.controller.ts`](../src/beds/beds.controller.ts) |
 | POST | `/api/v1/beds` | Crea cama | C1 | [`src/beds/beds.controller.ts`](../src/beds/beds.controller.ts) |
 | PATCH | `/api/v1/beds/:id/status` | Limpieza terminada o bloqueo | C2 | [`src/beds/beds.controller.ts`](../src/beds/beds.controller.ts) |
-| POST | `/api/v1/admissions` | Interna en una cama libre y genera el protocolo | C1, B3 | [`src/admissions/admissions.controller.ts`](../src/admissions/admissions.controller.ts) |
+| POST | `/api/v1/admissions` | Interna en una cama libre y copia el protocolo del motivo, si hay | C1, B3 | [`src/admissions/admissions.controller.ts`](../src/admissions/admissions.controller.ts) |
+| GET | `/api/v1/protocols` | Protocolos por motivo | B3 | [`src/admissions/protocols.controller.ts`](../src/admissions/protocols.controller.ts) |
+| POST | `/api/v1/protocols` | Crea un protocolo para un motivo | B3 | [`src/admissions/protocols.controller.ts`](../src/admissions/protocols.controller.ts) |
 | GET | `/api/v1/admissions` | Internaciones activas | C1, B3 | [`src/admissions/admissions.controller.ts`](../src/admissions/admissions.controller.ts) |
 | GET | `/api/v1/admissions/:id` | Internación con su protocolo | B3 | [`src/admissions/admissions.controller.ts`](../src/admissions/admissions.controller.ts) |
 | POST | `/api/v1/admissions/:id/discharge` | Alta: la cama pasa a limpieza | C2 | [`src/admissions/admissions.controller.ts`](../src/admissions/admissions.controller.ts) |
@@ -447,6 +451,8 @@ Errores transversales (guards / ValidationPipe): `401` sin Bearer válido; `403`
 
 `email`, `phone`, `coverage` (default `particular`) y `copay` (entero ≥ 0, default 0; es el copago fijo de la prepaga) opcionales. También opcionales: `birthDate` (`YYYY-MM-DD`), `address`, `insurer` (nombre de la obra social), `affiliateNumber`, `emergencyContact`, `notes` y `active` (default `true`). En `PATCH`, mandar `null` en un campo opcional lo borra.
 
+La respuesta del paciente trae dos saldos de solo lectura: `appointmentBalance` (lo que debe por consultas, D1) y `supplyBalance` (lo que debe por insumos, D2). Mandarlos en el body da `400`.
+
 ---
 
 ### `PATCH /api/v1/patients/:id`
@@ -826,22 +832,38 @@ Transiciones: `programado` → `en_sala_de_espera` | `cancelado`; `en_sala_de_es
 ]
 ```
 
-Cada nota de agenda es una frase: `Creó el turno`, `Creó un entreturno`, `Se acortó por un entreturno`, `Anunció al paciente en sala de espera`, `Marcó el turno como atendido`, `Canceló el turno`, `El horario pasó al primero de la lista de espera`, `Asignó el horario liberado desde la lista de espera`, `Reprogramó el turno` o `Creó el turno reprogramado`. Esas quedan con `kind: "agenda"`. Signos y medicación usan `kind: "signos"` y `kind: "medicacion"`.
+Cada nota de agenda es una frase: `Creó el turno`, `Creó un entreturno`, `Se acortó por un entreturno`, `Anunció al paciente en sala de espera`, `Marcó el turno como atendido`, `Canceló el turno`, `El horario pasó al primero de la lista de espera`, `Asignó el horario liberado desde la lista de espera`, `Reprogramó el turno` o `Creó el turno reprogramado`. Esas quedan con `kind: "agenda"`. Las notas viejas de signos y medicación (`kind: "signos"` y `kind: "medicacion"`) siguen en su turno; las nuevas van a la internación.
 
 ---
 
-### `POST /api/v1/appointments/:id/vitals`
+### `GET /api/v1/binnacle/admissions/:admissionId`
 
-**Qué hace:** Guarda presión, frecuencia y temperatura del turno. Hasta 39 °C anota «El control de signos salió bien». Si la temperatura lo supera, `fueraDeRango` es true y el log `[guardia]` avisa al médico de guardia.
+**Qué hace:** Notas de signos y medicación de una internación, de la más vieja a la más nueva. `kind` filtra igual que en la bitácora del turno.
+
+| | |
+|--|--|
+| Auth | Bearer; cualquier rol autenticado |
+| Path params | `admissionId` |
+| Query | `kind` opcional: `agenda`, `signos` o `medicacion` |
+| Respuesta OK | `200` array de `BinnacleRecord` con `admissionId` |
+| Errores | `404` internación; `400` `kind` inválido; `401` |
+| Evidencia | [`src/binnacle/binnacle.service.ts`](../src/binnacle/binnacle.service.ts) (`listForStay`) |
+| Flujos | B1, B2 |
+
+---
+
+### `POST /api/v1/admissions/:id/vitals`
+
+**Qué hace:** Guarda presión, frecuencia y temperatura de una internación sin alta. El paciente sale de la internación y el registro guarda `authorUserId` y `authorName`. Hasta 39 °C anota en la bitácora de la internación «El control de signos salió bien». Si la temperatura lo supera, `fueraDeRango` es true y el log `[guardia]` avisa al médico de guardia con el número de cama.
 
 | | |
 |--|--|
 | Auth | Bearer; roles `admin` o `enfermero` |
-| Path params | `id` del turno |
+| Path params | `id` de la internación |
 | Query | Sin query |
 | Body | JSON |
 | Respuesta OK | `201` `VitalSign` |
-| Errores | `404` turno; `400` body inválido; `403`; `401` |
+| Errores | `404` internación; `400` internación con alta o body inválido; `403`; `401` |
 | Evidencia | [`src/nursing/nursing.controller.ts`](../src/nursing/nursing.controller.ts), [`src/nursing/nursing.ts`](../src/nursing/nursing.ts) |
 | Flujos | B1 |
 
@@ -878,19 +900,19 @@ Cada nota de agenda es una frase: `Creó el turno`, `Creó un entreturno`, `Se a
 
 ---
 
-### `POST /api/v1/appointments/:id/doses`
+### `POST /api/v1/admissions/:id/doses`
 
-**Qué hace:** Marca una toma de una indicación de ese paciente. Solo si `administradaEn` cae a ±30 minutos de `horaIndicada`. En una sola transacción: descuenta 1 unidad del insumo (C3), guarda la toma, anota en la bitácora quién la aplicó y, si el paciente tiene una internación activa, agrega la línea «Insumos de Farmacia» con el precio vigente a la cuenta de la estadía (D2). Si algo falla, no queda nada a medias.
+**Qué hace:** Marca una toma de una indicación del paciente internado. Solo si la internación no tiene alta y `administradaEn` cae a ±30 minutos de `horaIndicada`. En una sola transacción: descuenta 1 unidad del insumo (C3), guarda la toma con `authorUserId` y `authorName`, anota en la bitácora de la internación quién la aplicó y agrega la línea «Insumos de Farmacia» con el precio vigente a la cuenta de esa estadía (D2), que también se suma al `supplyBalance` del paciente. Si algo falla, no queda nada a medias.
 
 | | |
 |--|--|
 | Auth | Bearer; roles `admin` o `enfermero` |
-| Path params | `id` del turno |
+| Path params | `id` de la internación |
 | Query | Sin query |
 | Body | JSON |
-| Respuesta OK | `201` `DoseAdministration` + `stockRestante` + `accountLine` (`null` si no está internado) |
-| Errores | `400` fuera de la ventana; `404` turno o indicación de otro paciente; `409` sin stock; `403`; `401` |
-| Evidencia | [`src/nursing/nursing.service.ts`](../src/nursing/nursing.service.ts), [`src/supplies/supplies.service.ts`](../src/supplies/supplies.service.ts) (`takeOneUnit`), [`src/billing/billing.service.ts`](../src/billing/billing.service.ts) (`chargeSupplyToActiveStay`) |
+| Respuesta OK | `201` `DoseAdministration` + `stockRestante` + `accountLine` |
+| Errores | `400` fuera de la ventana o internación con alta; `404` internación o indicación de otro paciente; `409` sin stock; `403`; `401` |
+| Evidencia | [`src/nursing/nursing.service.ts`](../src/nursing/nursing.service.ts), [`src/supplies/supplies.service.ts`](../src/supplies/supplies.service.ts) (`takeOneUnit`), [`src/billing/billing.service.ts`](../src/billing/billing.service.ts) (`chargeSupplyToStay`) |
 | Flujos | B2, C3, D2 |
 
 **Body:**
@@ -998,18 +1020,33 @@ Cada nota de agenda es una frase: `Creó el turno`, `Creó un entreturno`, `Se a
 
 ### `POST /api/v1/admissions`
 
-**Qué hace:** Interna a un paciente en una cama `libre` (C1) y genera su protocolo de enfermería según el motivo (B3). La cama pasa a `ocupada` con un update condicional (`WHERE status = 'libre'`): si dos administrativos asignan la misma cama a la vez, solo uno prospera y el otro recibe `409` «La cama acaba de ocuparse».
+**Qué hace:** Interna a un paciente en una cama `libre` (C1) y copia en `protocolTasks` las tareas del protocolo de su motivo (B3). `reason` es opcional y de texto libre (se guarda sin espacios y en minúsculas): sin motivo, o con un motivo sin protocolo, la internación se crea igual con `protocolTasks` vacío. La cama pasa a `ocupada` con un update condicional (`WHERE status = 'libre'`): si dos administrativos asignan la misma cama a la vez, solo uno prospera y el otro recibe `409` «La cama acaba de ocuparse».
 
 | | |
 |--|--|
 | Auth | Bearer; roles `admin` o `secretaria` |
-| Body | `{ "patientId": "...", "bedId": "...", "reason": "cirugia" }` |
-| Respuesta OK | `201` `Admission` con `protocolTasks` y `admittedAt` |
+| Body | `{ "patientId": "...", "bedId": "...", "reason": "cirugia" }` (`reason` opcional) |
+| Respuesta OK | `201` `Admission` con `reason` (o `null`), `protocolTasks` y `admittedAt` |
 | Errores | `409` cama no libre, cama recién ocupada o paciente ya internado; `404` paciente o cama; `400`; `403`; `401` |
-| Evidencia | [`src/admissions/admissions.service.ts`](../src/admissions/admissions.service.ts), [`src/admissions/protocols.ts`](../src/admissions/protocols.ts) |
+| Evidencia | [`src/admissions/admissions.service.ts`](../src/admissions/admissions.service.ts), [`src/admissions/protocols.service.ts`](../src/admissions/protocols.service.ts) (`tasksFor`) |
 | Flujos | C1, B3 |
 
-Protocolos: `cirugia` → ayuno de 8 horas, vía intravenosa periférica, signos cada 2 horas. `respiratorio` → saturación continua, aislamiento de contacto y gotas. `pediatria` → signos cada 4 horas, peso y balance hídrico, acompañante permanente.
+Protocolos del seed: `cirugia` → ayuno de 8 horas, vía intravenosa periférica, signos cada 2 horas. `respiratorio` → saturación continua, aislamiento de contacto y gotas. `pediatria` → signos cada 4 horas, peso y balance hídrico, acompañante permanente. Un protocolo creado después no cambia las internaciones anteriores.
+
+---
+
+### `GET /api/v1/protocols` · `POST /api/v1/protocols`
+
+**Qué hace:** Lista los protocolos ordenados por motivo, y crea uno nuevo. El motivo es único y se guarda sin espacios y en minúsculas, igual que en la internación.
+
+| | |
+|--|--|
+| Auth | Bearer. `GET` cualquier rol autenticado; `POST` `admin` o `profesional` |
+| Body | `{ "reason": "traumatismo", "tasks": ["Inmovilizar el miembro", "Control del dolor cada 4 horas"] }` |
+| Respuesta OK | `200` array `Protocol` / `201` `Protocol` |
+| Errores | `409` ya hay un protocolo para ese motivo; `400` motivo vacío o `tasks` vacío; `403`; `401` |
+| Evidencia | [`src/admissions/protocols.controller.ts`](../src/admissions/protocols.controller.ts), [`src/admissions/protocols.service.ts`](../src/admissions/protocols.service.ts) |
+| Flujos | B3 |
 
 ---
 
@@ -1057,7 +1094,7 @@ Protocolos: `cirugia` → ayuno de 8 horas, vía intravenosa periférica, signos
 
 ### `POST /api/v1/appointments/:id/charges`
 
-**Qué hace:** Factura la consulta del turno con la cobertura del paciente (D1). Pública: paciente 0 y el Estado el total. Prepaga: el paciente paga su `copay` (nunca más que el precio) y el resto la prepaga. Particular: el paciente paga todo. Una consulta se factura una sola vez.
+**Qué hace:** Factura la consulta del turno con la cobertura del paciente (D1). Pública: paciente 0 y el Estado el total. Prepaga: el paciente paga su `copay` (nunca más que el precio) y el resto la prepaga. Particular: el paciente paga todo. En la misma transacción, la parte del paciente se suma a su `appointmentBalance`. Una consulta se factura una sola vez.
 
 | | |
 |--|--|

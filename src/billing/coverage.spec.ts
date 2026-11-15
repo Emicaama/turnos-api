@@ -1,4 +1,12 @@
-import { splitByCoverage } from './coverage';
+import { patientShare, splitByCoverage } from './coverage';
+
+describe('patientShare', () => {
+  it('suma solo lo que paga el paciente', () => {
+    expect(patientShare(splitByCoverage('prepaga', 15000, 3000))).toBe(3000);
+    expect(patientShare(splitByCoverage('publica', 15000, 0))).toBe(0);
+    expect(patientShare(splitByCoverage('particular', 15000, 0))).toBe(15000);
+  });
+});
 
 describe('splitByCoverage', () => {
   it('pública: el paciente paga 0 y el Estado subsidia todo', () => {

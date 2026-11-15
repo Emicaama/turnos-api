@@ -17,6 +17,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { AppointmentsService } from './appointments.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { ListAppointmentsQueryDto } from './dto/list-appointments-query.dto';
+import { ListWaitlistQueryDto } from './dto/list-waitlist-query.dto';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto';
 
 @ApiTags('appointments')
@@ -30,6 +31,11 @@ export class AppointmentsController {
   @Post()
   create(@Body() dto: CreateAppointmentDto, @CurrentUser() user: AuthUser) {
     return this.appointmentsService.create(dto, user);
+  }
+
+  @Get('waitlist')
+  listWaitlist(@Query() query: ListWaitlistQueryDto) {
+    return this.appointmentsService.listWaitlist(query);
   }
 
   @Get()

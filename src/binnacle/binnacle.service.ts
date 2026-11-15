@@ -24,6 +24,19 @@ export class BinnacleService {
     });
   }
 
+  async listForStay(admissionId: string, kind?: BinnacleKind) {
+    const admission = await this.prisma.admission.findUnique({
+      where: { id: admissionId },
+    });
+    if (!admission) {
+      throw new NotFoundException('Internación no encontrada');
+    }
+    return this.prisma.binnacleRecord.findMany({
+      where: { admissionId, kind },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
   private async assertProfessionalCanRead(
     appointmentId: string,
     actor: AuthUser,

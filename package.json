@@ -11,6 +11,7 @@
   "scripts": {
     "build": "nest build",
     "seed": "nest start --entryFile seed",
+    "seed:reset": "cross-env SEED_FORCE=1 nest start --entryFile seed",
     "prisma:generate": "prisma generate",
     "prisma:push": "node scripts/prepare-appointment-status.cjs && prisma db push --accept-data-loss",
     "postinstall": "prisma generate",
@@ -57,6 +58,7 @@
     "@types/passport": "^1.0.17",
     "@types/passport-jwt": "^4.0.1",
     "@types/supertest": "^7.0.0",
+    "cross-env": "^10.1.0",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",

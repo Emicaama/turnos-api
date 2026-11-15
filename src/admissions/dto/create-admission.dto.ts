@@ -1,5 +1,6 @@
-import { AdmissionReason } from '@prisma/client';
-import { IsEnum, IsUUID } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsOptional, IsString, IsUUID } from 'class-validator';
+import { normalizeReason } from '../protocols';
 
 export class CreateAdmissionDto {
   @IsUUID()
@@ -8,6 +9,20 @@ export class CreateAdmissionDto {
   @IsUUID()
   bedId: string;
 
-  @IsEnum(AdmissionReason)
-  reason: AdmissionReason;
+  @IsOptional()
+  @Transform(({ value }) => normalizeReason(value))
+  @IsString()
+  reason?: string;
+
+  @IsOptional()
+  @IsString()
+  diagnosis?: string;
+
+  @IsOptional()
+  @IsUUID()
+  treatingProfessionalId?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
 }

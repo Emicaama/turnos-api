@@ -1,10 +1,10 @@
 import type { BedStatus } from '@prisma/client';
 
 const MANUAL_TRANSITIONS: Record<BedStatus, BedStatus[]> = {
-  libre: ['bloqueada'],
+  disponible: ['bloqueada'],
   ocupada: [],
-  en_limpieza: ['libre'],
-  bloqueada: ['libre'],
+  en_limpieza: ['disponible'],
+  bloqueada: ['disponible'],
 };
 
 export function canChangeBedStatus(from: BedStatus, to: BedStatus): boolean {

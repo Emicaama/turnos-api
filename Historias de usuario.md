@@ -4,7 +4,7 @@ Transcripción de `Historias de usuario.docx`, partida en bloques para citarlos 
 
 ## Cobertura aproximada
 
-Esta API es una agenda de consultorio: secretaría reserva turnos contra la disponibilidad de un profesional, evita solapes con una transacción serializable, mueve estados simples y anota una bitácora. También clasifica la guardia (A5), registra signos y medicación sobre un turno (B1, B2), interna pacientes en camas con su protocolo (B3, C1, C2), descuenta stock al medicar (C3) y factura por cobertura y por insumos (D1, D2). Hay un rol `enfermero`.
+Esta API es una agenda de consultorio: secretaría reserva turnos contra la disponibilidad de un profesional, evita solapes con una transacción serializable, mueve estados simples y anota una bitácora. También clasifica la guardia (A5), registra signos y medicación sobre la internación activa (B1, B2), interna pacientes en camas con su protocolo (B3, C1, C2), descuenta stock al medicar (C3) y factura por cobertura y por insumos (D1, D2). Hay un rol `enfermero`.
 
 | ID | Historia | Cobertura |
 |----|----------|-----------|
@@ -34,11 +34,11 @@ Las 13 historias están cubiertas.
 
 **A5.** `POST /api/v1/triage` clasifica a un paciente sin turno en `rojo`, `amarillo` o `verde`. No crea un turno. `GET /api/v1/triage?branchId=` ordena la cola de esa sucursal: el rojo va primero y, a igual nivel, manda la llegada. El rojo deja un log `[guardia]`. Lo carga el enfermero, la secretaría o el admin.
 
-**B1.** `POST /api/v1/appointments/:id/vitals` guarda presión, frecuencia y temperatura del turno. Hasta 39 °C la nota es `El control de signos salió bien` (`kind: signos`). Por encima, `fueraDeRango` queda en true y el log `[guardia]` avisa. Lo carga el enfermero o el admin.
+**B1.** `POST /api/v1/admissions/:id/vitals` guarda presión, frecuencia y temperatura de una internación activa (si tiene alta, `400`). Hasta 39 °C la nota es `El control de signos salió bien` (`kind: signos`). Por encima, `fueraDeRango` queda en true y el log `[guardia]` avisa. Lo carga el enfermero o el admin.
 
-**B2.** El profesional indica un insumo con `POST /api/v1/patients/:id/prescriptions`. El enfermero marca la toma con `POST /api/v1/appointments/:id/doses` solo si cae a ±30 minutos de `horaIndicada`; la bitácora (`kind: medicacion`) anota quién la dio y se descuenta una unidad del stock (C3).
+**B2.** El profesional indica un insumo con `POST /api/v1/patients/:id/prescriptions`. El enfermero marca la toma con `POST /api/v1/admissions/:id/doses` (internación activa) solo si cae a ±30 minutos de `horaIndicada`; la bitácora (`kind: medicacion`) anota quién la dio y se descuenta una unidad del stock (C3).
 
-**B3.** `POST /api/v1/admissions` genera `protocolTasks` según `reason`: `cirugia`, `respiratorio` o `pediatria`.
+**B3.** `POST /api/v1/admissions` copia en `protocolTasks` las tareas del protocolo de `reason`. El motivo es opcional; sin motivo o sin protocolo, la lista queda vacía. `POST /api/v1/protocols` crea protocolos nuevos.
 
 **C1.** La misma internación pasa la cama de `libre` a `ocupada` con un update condicional. Dos asignaciones simultáneas: una `201`, la otra `409` («La cama acaba de ocuparse»).
 
@@ -48,7 +48,7 @@ Las 13 historias están cubiertas.
 
 **D1.** `POST /api/v1/appointments/:id/charges` reparte el precio entre paciente, Estado o prepaga según la cobertura del paciente.
 
-**D2.** Si el paciente está internado, la dosis agrega una línea «Insumos de Farmacia» a la cuenta de la estadía, ligada al `doseId`.
+**D2.** Cada dosis agrega una línea «Insumos de Farmacia» a la cuenta de su internación, ligada al `doseId`.
 
 ---
 
@@ -179,7 +179,7 @@ Estados pedidos:
 - Entonces el registro se guarda destacado en rojo.
 - Y se notifica con prioridad alta al médico de guardia de ese sector.
 
-**Cobertura: sí.** `POST /api/v1/appointments/:id/vitals` guarda presión, frecuencia y temperatura sobre un turno existente. El paciente sale de ese turno; no hay habitación. Hasta 39 °C la nota de bitácora (`kind: signos`) es «El control de signos salió bien». Si la temperatura lo supera, el registro queda con `fueraDeRango: true` y el log avisa a la guardia. Presión y pulso se guardan y no disparan el aviso. Lo carga el enfermero o el admin. Los signos siguen colgando de un turno, no de la habitación.
+**Cobertura: sí.** `POST /api/v1/admissions/:id/vitals` guarda presión, frecuencia y temperatura sobre la internación: de ahí salen el paciente y la cama. Si la internación no existe, `404`; si ya tiene alta, `400`. El registro guarda quién lo cargó (`authorUserId` y `authorName`). Hasta 39 °C la nota de bitácora de la internación (`kind: signos`) es «El control de signos salió bien». Si la temperatura lo supera, el registro queda con `fueraDeRango: true` y el log avisa a la guardia con el número de cama. Presión y pulso se guardan y no disparan el aviso. Lo carga el enfermero o el admin. Las notas se leen con `GET /api/v1/binnacle/admissions/:id`.
 
 ### B2 — Administración de medicación prescrita
 
@@ -192,7 +192,7 @@ Estados pedidos:
 - Entonces queda registrado qué usuario la aplicó.
 - Y se descuenta el insumo del inventario del piso.
 
-**Cobertura: sí.** `POST /api/v1/patients/:id/prescriptions` (profesional o admin) guarda el insumo (`supplyId`), la dosis y cada cuántas horas. `POST /api/v1/appointments/:id/doses` (enfermero o admin) acepta la toma si `administradaEn` cae a ±30 minutos de `horaIndicada`; si no, `400`. La bitácora (`kind: medicacion`) anota quién la aplicó y el insumo se descuenta del inventario (C3). El inventario es global, no por piso.
+**Cobertura: sí.** `POST /api/v1/patients/:id/prescriptions` (profesional o admin) guarda el insumo (`supplyId`), la dosis y cada cuántas horas. `GET /api/v1/patients/:id/prescriptions` las lista. `POST /api/v1/admissions/:id/doses` (enfermero o admin) acepta la toma si la internación sigue activa, la indicación es de ese paciente y `administradaEn` cae a ±30 minutos de `horaIndicada`; si no, `400`. La dosis guarda quién la aplicó (`authorUserId` y `authorName`) y la bitácora de la internación (`kind: medicacion`) lo anota y el insumo se descuenta del inventario (C3). El inventario es global, no por piso.
 
 ### B3 — Protocolos de atención (patrón Builder)
 
@@ -214,7 +214,7 @@ La épica arma un plan de cuidados distinto según el motivo de ingreso (cirugí
 - Entonces un Respiratory Protocol Builder genera las tareas.
 - Incluye monitoreo continuo de saturación y aislamiento de contacto y gotas.
 
-**Cobertura: sí.** Al internar (`POST /api/v1/admissions`) el motivo elige el protocolo y la internación guarda `protocolTasks`. `cirugia`: ayuno de 8 horas, vía intravenosa periférica, signos cada 2 horas. `respiratorio`: saturación continua, aislamiento de contacto y gotas. `pediatria`: signos cada 4 horas, peso y balance hídrico, acompañante permanente. El "builder" es un mapa motivo → tareas en `src/admissions/protocols.ts`, no una clase por protocolo. No hay traumatismo.
+**Cobertura: sí.** Al internar (`POST /api/v1/admissions`) el motivo (`reason`, opcional y de texto libre) elige el protocolo y la internación copia sus tareas en `protocolTasks`. Sin motivo, o con un motivo que no tiene protocolo, la internación se crea igual con `protocolTasks` vacío. Los protocolos están en la tabla `Protocol`: `POST /api/v1/protocols` (profesional o admin) crea uno nuevo, por ejemplo traumatismo, y `GET /api/v1/protocols` los lista. El seed carga `cirugia` (ayuno de 8 horas, vía intravenosa periférica, signos cada 2 horas), `respiratorio` (saturación continua, aislamiento de contacto y gotas) y `pediatria` (signos cada 4 horas, peso y balance hídrico, acompañante permanente). El "builder" es la búsqueda motivo → tareas, no una clase por protocolo.
 
 ---
 
@@ -329,7 +329,7 @@ El costo depende de la cobertura: pública, prepaga o particular.
 - Entonces el paciente debe 3 000.
 - Y se reclaman 12 000 a la prepaga.
 
-**Cobertura: sí.** El paciente tiene `coverage` (`publica`, `prepaga`, `particular`) y `copay`. `POST /api/v1/appointments/:id/charges` con `{ price }` guarda un `Charge` por cada pagador. La estrategia es un mapa cobertura → regla en `src/billing/coverage.ts`. No hay nomenclador: el precio llega en el request. Una consulta se factura una vez (`409`).
+**Cobertura: sí.** El paciente tiene `coverage` (`publica`, `prepaga`, `particular`) y `copay`. `POST /api/v1/appointments/:id/charges` con `{ price }` guarda un `Charge` por cada pagador. La estrategia es un mapa cobertura → regla en `src/billing/coverage.ts`. No hay nomenclador: el precio llega en el request. Una consulta se factura una vez (`409`). La parte del paciente se suma a su saldo de consultas (`appointmentBalance`).
 
 ### D2 — Cargo automático por consumo de insumos
 
@@ -345,4 +345,4 @@ Back-office escucha a enfermería sin frenar la atención.
 - Y se agrega una línea "Insumos de Farmacia" a la cuenta.
 - Y esa línea queda ligada al id del evento, para auditoría.
 
-**Cobertura: sí.** Cuando se registra una dosis y el paciente tiene una internación activa, se crea una `AccountLine` «Insumos de Farmacia» con el `price` vigente del insumo y el `doseId` (único, para auditoría). `GET /api/v1/admissions/:id/account` devuelve las líneas y el total. Corre en la transacción de la dosis, sin eventos asíncronos.
+**Cobertura: sí.** Cuando se registra una dosis en una internación, se crea una `AccountLine` «Insumos de Farmacia» con el `price` vigente del insumo y el `doseId` (único, para auditoría). `GET /api/v1/admissions/:id/account` devuelve las líneas y el total. El precio también se suma al saldo de insumos del paciente (`supplyBalance`), sin aplicar la cobertura. Corre en la transacción de la dosis, sin eventos asíncronos.

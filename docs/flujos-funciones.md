@@ -206,6 +206,8 @@ PATCH /api/v1/patients/:id
 ```
 
 `coverage` default `particular`, `copay` default 0. Eso lo usa el cargo (§24).
+`appointmentBalance` y `supplyBalance` (default 0) son lo que debe el paciente por consultas
+y por insumos. Los suben el cargo (§24) y la dosis (§19); el `PATCH` no los acepta (400).
 
 ---
 
@@ -568,23 +570,25 @@ Quién escribe, y con qué `kind`:
 
 ---
 
-## 17. Signos — `POST /api/v1/appointments/:id/vitals`
+## 17. Signos — `POST /api/v1/admissions/:id/vitals`
 
 ```
-POST /api/v1/appointments/:id/vitals
+POST /api/v1/admissions/:id/vitals
   [nursing/nursing.controller.ts]
    │  §0 ── no es admin ni enfermería ──► 403
    ▼
 recordVitals                                      [nursing/nursing.service.ts]
-   ├─ findAppointment ── no está ──► 404 Turno no encontrado
-   │     (no mira el estado: también un cancelado)
+   ├─ admissions.findActive                      [admissions/admissions.service.ts]
+   │     no está ──► 404 Internación no encontrada
+   │     con alta ──► 400 La internación ya tiene alta
    ├─ isFever  temperatura > 39                  [nursing/nursing.ts]
    └─ transacción
-        ├─ vitalSign.create  fueraDeRango = fiebre
-        └─ addBinnacleNote vitalNote  kind signos
+        ├─ vitalSign.create  fueraDeRango = fiebre, patientId de la internación,
+        │                    authorUserId y authorName
+        └─ addStayNote vitalNote  kind signos    [binnacle/binnacle-note.ts]
    ▼
 si fiebre, después del commit:
-   notify type guardia  LOG  "Temperatura {n} °C. Avisar al médico de guardia."
+   notify type guardia  LOG  "Cama {número}: temperatura {n} °C. Avisar al médico de guardia."
    (39 justo no es fiebre)
                                               ──► 201
 ```
@@ -607,17 +611,17 @@ prescribe                                         [nursing/nursing.service.ts]
 
 ---
 
-## 19. Dosis — `POST /api/v1/appointments/:id/doses`
+## 19. Dosis — `POST /api/v1/admissions/:id/doses`
 
 ```
-POST /api/v1/appointments/:id/doses
+POST /api/v1/admissions/:id/doses
   [nursing/nursing.controller.ts]
    │  §0 ── no es admin ni enfermería ──► 403
    ▼
 giveDose                                          [nursing/nursing.service.ts]
-   ├─ findAppointment ── no está ──► 404 Turno no encontrado
+   ├─ admissions.findActive ── no está ──► 404 · con alta ──► 400
    ├─ prescription.findUnique
-   │     no está, o el paciente no es el del turno
+   │     no está, o el paciente no es el de la internación
    │       ──► 404 Indicación no encontrada
    ├─ isWithinDoseWindow  |administradaEn − horaIndicada| <= 30 min
    │     afuera ──► 400 La dosis está fuera de los 30 minutos de la hora indicada
@@ -627,12 +631,11 @@ transacción
    ├─ 1. takeOneUnit                               [supplies/supplies.service.ts]
    │      updateMany stock > 0, decrement 1
    │      count 0 ──► 409 No queda stock de ese insumo
-   ├─ 2. doseAdministration.create
-   ├─ 3. addBinnacleNote doseNote  kind medicacion
-   └─ 4. chargeSupplyToActiveStay                  [billing/billing.service.ts]
-          internación abierta (dischargedAt null) de ese paciente
-            no hay ──► accountLine null (la dosis igual queda, el stock igual baja)
-            hay → accountLine "Insumos de Farmacia" por supply.price
+   ├─ 2. doseAdministration.create  admissionId, authorUserId y authorName
+   ├─ 3. addStayNote doseNote  kind medicacion
+   └─ 4. chargeSupplyToStay                        [billing/billing.service.ts]
+          accountLine "Insumos de Farmacia" por supply.price en esa internación
+          + patient.supplyBalance += supply.price
                                               ──► 201 { dosis, stockRestante, accountLine }
 ```
 
@@ -757,13 +760,29 @@ transacción
    │     └─ updateMany libre → ocupada
    │           perdió la carrera ──► 409 La cama acaba de ocuparse
    └─ admission.create
-         protocolTasks = buildProtocol(reason)    [admissions/protocols.ts]
-           cirugia      → ayuno 8 h, vía, signos cada 2 h
-           respiratorio → saturación, aislamiento
-           pediatria    → signos cada 4 h, peso, acompañante
+         reason opcional, texto libre en minúsculas (o null)
+         protocolTasks = protocols.tasksFor(reason)  [admissions/protocols.service.ts]
+           sin reason o sin protocolo → []  (la internación se crea igual)
+           con protocolo → sus tareas
          (queda copiado: después no se relee el protocolo)
                                               ──► 201
 ```
+
+### 22b'. Protocolos — `GET` / `POST /api/v1/protocols`
+
+```
+POST /api/v1/protocols  { reason, tasks[] }
+  [admissions/protocols.controller.ts]
+   │  §0 ── no es admin ni profesional ──► 403
+   ├─ reason vacío o tasks vacío ──► 400
+   └─ protocol.create                             [admissions/protocols.service.ts]
+         motivo repetido ──► 409 Ya existe un protocolo para ese motivo
+                                              ──► 201
+
+GET /api/v1/protocols   §0, sin @Roles, orden por motivo ──► 200
+```
+
+El seed carga `cirugia`, `respiratorio` y `pediatria` (`DEFAULT_PROTOCOLS`) en cada arranque, sin pisar los existentes.
 
 ### 22c. Internaciones abiertas y una
 
@@ -836,6 +855,7 @@ chargeConsultation(id, price)                     [billing/billing.service.ts]
          prepaga    → paciente min(copay, price) + prepaga el resto
          particular → paciente price
          transacción: un charge por pagador
+                      + patient.appointmentBalance += parte del paciente
          (sin bitácora y sin aviso)
                                               ──► 201
 ```
@@ -858,7 +878,7 @@ No hay mail. El aviso es una línea de LOG (`LogNotificationAdapter`).
 | Signos en rango | nada del turno | signos "salió bien" | no |
 | Signos > 39 °C | nada del turno; `fueraDeRango` | signos "fuera de rango…" | `guardia` |
 | Indicación | fila `prescription` | no | no |
-| Dosis | stock − 1; línea de cuenta solo si hay internación abierta | medicacion | no |
+| Dosis | stock − 1; línea en la cuenta de la internación | medicacion (en la internación) | no |
 | Triaje rojo | fila `triageEntry` | no | `guardia` |
 | Triaje amarillo o verde | fila `triageEntry` | no | no |
 | Internar | admisión + cama `ocupada` + protocolo copiado | no | no |

@@ -40,7 +40,7 @@ Cuentas del seed:
 - **Diego Fernández** — `diego.fernandez@turnos.local` / `Medico123!`
 - **Elena Soto** — `elena.soto@turnos.local` / `Medico123!`
 
-El seed también deja la sede central, tres especialidades (Clínica médica, Cardiología, Pediatría) y 20 turnos con pacientes distintos entre el lunes 9 y el viernes 13 de noviembre de 2026, repartidos entre los cinco médicos. Tres de esas consultas ya están facturadas, una por cobertura: particular (el paciente paga $15000), pública (el Estado paga $15000) y prepaga (el paciente paga el copago de $3000 y la prepaga el resto). Gael Torres está internado en la cama 204 por cirugía, con el protocolo cargado y una cuenta de internación de $800 por suero fisiológico. La cama 205 quedó en limpieza después del alta de Carlos Yepez y la 310 está bloqueada por mantenimiento. La cama 101 sigue libre. El Ibuprofeno 400 mg queda con 50 unidades a $1200. Si la secretaría ya existe, no vuelve a insertar.
+El seed deja datos demo de **todas** las entidades: 2 sedes, 4 especialidades, 24 pacientes, 5 médicos (+ agendas mañana/tarde), turnos de hoy±días (todos los estados), cargos por cobertura, lista de espera, triaje, bitácora, 3 alas / 6 camas, protocolos, 2 internaciones activas + 1 alta, signos vitales, prescripciones, dosis, insumos y cuentas. Si la secretaría ya existe, no vuelve a insertar; para regenerar todo: `npm run seed:reset` o `SEED_FORCE=1 node dist/seed.js`.
 
 El front Vue de `../Front-Hospital/FrontHospitall` consume esta API a través del proxy de Vite (`/api` → `VITE_API_PROXY_TARGET`, por defecto `http://localhost:3000`); la API no habilita CORS.
 
@@ -70,18 +70,27 @@ Para resetear la base y volver a sembrar: `docker compose down -v` y después `d
 4. Agenda `GET /api/v1/professionals/:id/agenda?from=&to=`
 5. Cancelar `POST /api/v1/appointments/:id/cancel` (queda en `GET /api/v1/binnacle/:id`)
 6. Triaje `POST /api/v1/triage` (`rojo`, `amarillo` o `verde`). La cola de la sucursal es `GET /api/v1/triage?branchId=`
-7. Signos `POST /api/v1/appointments/:id/vitals` (enfermero). Indicación `POST /api/v1/patients/:id/prescriptions` (profesional) y toma `POST /api/v1/appointments/:id/doses` (enfermero, solo a ±30 minutos; descuenta stock)
-8. Internación `POST /api/v1/admissions` (cama libre + motivo → protocolo), alta `POST /api/v1/admissions/:id/discharge` (cama a limpieza) y `PATCH /api/v1/beds/:id/status` para liberarla
-9. Facturación `POST /api/v1/appointments/:id/charges` según la cobertura del paciente y cuenta de la estadía `GET /api/v1/admissions/:id/account`
+7. Internación `POST /api/v1/admissions` (cama libre + motivo opcional → protocolo; sin motivo o sin protocolo, `protocolTasks` vacío). Protocolos `GET`/`POST /api/v1/protocols` (crea profesional o admin). Alta `POST /api/v1/admissions/:id/discharge` (cama a limpieza) y `PATCH /api/v1/beds/:id/status` para liberarla
+8. Signos `POST /api/v1/admissions/:id/vitals` (enfermero). Indicación `POST /api/v1/patients/:id/prescriptions` (profesional) y toma `POST /api/v1/admissions/:id/doses` (enfermero, solo a ±30 minutos; descuenta stock y carga la cuenta). Las dos piden una internación sin alta; sus notas quedan en `GET /api/v1/binnacle/admissions/:id`
+9. Facturación `POST /api/v1/appointments/:id/charges` según la cobertura del paciente y cuenta de la estadía `GET /api/v1/admissions/:id/account`. El paciente acumula lo que debe en `appointmentBalance` (consultas) y `supplyBalance` (insumos)
 
 Reglas: un profesional no puede tener dos turnos activos (`programado`/`en_sala_de_espera`) solapados en la misma sucursal. Si el horario ya está tomado, el mismo POST deja al paciente en la lista de espera. Si dos reservas entran juntas a un hueco libre, la segunda responde 409. El horario debe caer en su disponibilidad. El profesional no crea turnos ajenos. Un entreturno (`entreturno: true`) solo puede empezar a los :15 o :45. En la guardia, `rojo` va antes que `amarillo` y `verde`. Una cama solo se asigna si está `libre`; dos asignaciones simultáneas dejan una sola (la otra, 409).
 
 Horarios de disponibilidad se interpretan en `CLINIC_TZ`.
 
+## Postman (presentación A–D)
+
+Importá en Postman:
+
+- [`postman/Turnos-API-Historias-A-D.postman_collection.json`](postman/Turnos-API-Historias-A-D.postman_collection.json) — carpetas por historia (A1–D2) + catálogo + setup
+- [`postman/Turnos-API-Local.postman_environment.json`](postman/Turnos-API-Local.postman_environment.json) — `baseUrl` Docker
+
+Instrucciones cortas: [`postman/README.md`](postman/README.md). Regenerar: `node scripts/generate-postman-collection.cjs`.
+
 ## Scripts
 
 - `npm run start:dev` — Nest watch
-- `npm run prisma:push` — migra estados viejos si hace falta y sincroniza el schema con Postgres
+- `npm run prisma:push` — migra estados viejos y pasa signos y dosis de turno a internación el motivo de internación a texto y calcula los saldos de los pacientes si hace falta, y sincroniza el schema con Postgres. Si un signo o una dosis vieja no tiene internación posible, frena y pide borrarlos o resetear la base
 - `npm run seed` — datos demo (idempotente si ya existe la secretaría)
 - `npm test` — unitarios (entreturno, estados, triaje, fiebre, dosis, protocolos, camas, cobertura, zona horaria)
 - `npm run test:e2e` — turnos, lista de espera, entreturno, estados, bitácora, internación, stock y facturación (usa la base `turnos_test`)

@@ -94,6 +94,22 @@ export class AppointmentsService {
     });
   }
 
+  listWaitlist(query: {
+    day?: string;
+    professionalId?: string;
+    branchId?: string;
+  }) {
+    return this.prisma.waitlistEntry.findMany({
+      where: {
+        day: query.day,
+        professionalId: query.professionalId,
+        branchId: query.branchId,
+        promotedAppointmentId: null,
+      },
+      orderBy: [{ day: 'asc' }, { createdAt: 'asc' }],
+    });
+  }
+
   async agenda(
     professionalId: string,
     from: string,
