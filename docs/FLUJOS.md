@@ -1,8 +1,9 @@
-# Historias A–D — flujo con funciones
+# Flujos técnicos (historias A–D)
 
-> Cada caja es un punto de [Historias de usuario.md](../Historias%20de%20usuario.md).
+Mapa de qué función corre en cada historia. Vista de producto: [PRODUCTO.md](PRODUCTO.md). Texto de negocio: [Historias de usuario.md](Historias%20de%20usuario.md).
+
 > `→` = llama a. Entre `[ ]`, el archivo desde `src/`.
-> El aviso es un LOG de Nest, no un mail ni un monitor.
+> Los avisos salen por el logger de Nest (`warn` en `guardia`, `log` en el resto): no hay mail ni monitor.
 > Si la historia pide un paso que el código no hace, el diagrama lo dice en la misma línea.
 
 ```

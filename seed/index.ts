@@ -1,14 +1,13 @@
-import { NestFactory } from '@nestjs/core';
-import { SEED_ACCOUNTS, SeedService } from './seed/seed.service';
-import { SeedModule } from './seed/seed.module';
+import { SEED_ACCOUNTS, disconnectSeed, runSeed } from './run';
 
 async function main() {
   const force = process.env.SEED_FORCE === '1';
-  const app = await NestFactory.createApplicationContext(SeedModule);
   try {
-    const result = await app.get(SeedService).run(force);
+    const result = await runSeed(force);
     if (result.skipped) {
-      console.log('Seed ya estaba aplicado (usá SEED_FORCE=1 para regenerar todo)');
+      console.log(
+        'Seed ya estaba aplicado (usá SEED_FORCE=1 o npm run seed:reset para regenerar)',
+      );
       return;
     }
     console.log(result.forced ? 'Seed forzado y regenerado' : 'Seed listo');
@@ -25,11 +24,15 @@ async function main() {
       `Médicos: ana.perez, luis.gomez, carla.ruiz, diego.fernandez y elena.soto @turnos.local / ${SEED_ACCOUNTS.medicos.ana.password}`,
     );
     console.log(
-      'Cubre: sedes, especialidades, pacientes, profesionales, agendas, turnos (hoy±), cargos, lista de espera, triaje, bitácora, alas/camas, protocolos, internaciones, signos, prescripciones, dosis, insumos y cuentas',
+      'Cubre: sedes, especialidades, pacientes, profesionales, agendas, turnos, cargos, waitlist, triaje, bitácora, camas, protocolos, internaciones, signos, dosis, insumos y cuentas',
     );
   } finally {
-    await app.close();
+    await disconnectSeed();
   }
 }
 
-void main();
+main().catch(async (err) => {
+  console.error(err);
+  await disconnectSeed().catch(() => undefined);
+  process.exit(1);
+});

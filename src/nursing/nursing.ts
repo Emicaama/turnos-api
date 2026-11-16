@@ -2,7 +2,7 @@ const FEVER_CELSIUS = 39;
 const DOSE_WINDOW_MS = 30 * 60_000;
 
 export function isFever(temperatureC: number): boolean {
-  return temperatureC > FEVER_CELSIUS;
+  return temperatureC >= FEVER_CELSIUS;
 }
 
 export function vitalNote(fever: boolean): string {

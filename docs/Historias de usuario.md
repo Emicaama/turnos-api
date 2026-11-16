@@ -2,6 +2,8 @@
 
 Transcripción de `Historias de usuario.docx`, partida en bloques para citarlos (A1, A2, B1…). La cobertura de abajo describe el código actual de `turnos-api`.
 
+Resumen corto: [PRODUCTO.md](PRODUCTO.md). Flujos con funciones: [FLUJOS.md](FLUJOS.md).
+
 ## Cobertura aproximada
 
 Esta API es una agenda de consultorio: secretaría reserva turnos contra la disponibilidad de un profesional, evita solapes con una transacción serializable, mueve estados simples y anota una bitácora. También clasifica la guardia (A5), registra signos y medicación sobre la internación activa (B1, B2), interna pacientes en camas con su protocolo (B3, C1, C2), descuenta stock al medicar (C3) y factura por cobertura y por insumos (D1, D2). Hay un rol `enfermero`.

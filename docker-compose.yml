@@ -35,7 +35,7 @@ services:
     command:
       - sh
       - -c
-      - npx prisma generate && npm run build && PREPARE_STATUS_DIRECT=1 node scripts/prepare-appointment-status.cjs && npx prisma db push --skip-generate --accept-data-loss && node dist/seed.js && npm run start:dev
+      - npx prisma generate && npm run build && npx prisma db push --skip-generate --accept-data-loss && npx ts-node --transpile-only seed/index.ts && npm run start:dev
     depends_on:
       postgres:
         condition: service_healthy

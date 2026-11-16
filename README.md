@@ -1,100 +1,341 @@
 # Turnos API
 
-API NestJS 11 + Node 22 para que una **secretaría** genere y controle turnos de una clínica, con **Prisma + PostgreSQL** en Docker.
+API REST para una clínica: **turnos**, **guardia (triaje)**, **internación**, **enfermería** y **facturación**, con roles JWT y PostgreSQL.
 
-## Stack
+- NestJS 11 · Node 22 · Prisma 6 · PostgreSQL 16
+- Prefijo: `/api/v1` · Swagger: `/docs`
+- Roles: `admin` · `secretaria` · `profesional` · `enfermero`
+- Front Vue opcional: `../Front-Hospital/FrontHospitall` (proxy `/api`)
 
-- NestJS 11 (CommonJS / compilado Nest)
-- Prisma 6 (PostgreSQL) — schema en `prisma/schema.prisma`
-- TypeScript, npm, Jest, Prettier
-- PostgreSQL 16 vía Docker Compose
-- JWT + roles: `admin`, `secretaria`, `profesional`, `enfermero`
-- Swagger en `/docs`
+```
+Login → catálogo (sedes, médicos, pacientes, franjas)
+      → turnos / agenda / bitácora
+      → triaje (guardia, sin turno)
+      → internación (cama + protocolo)
+           ├─ signos (fiebre > 39 °C → WARN guardia)
+           ├─ dosis → stock − 1 → cuenta de la estadía
+           └─ alta → cama en limpieza
+      → facturar consulta
+```
 
-Docs: [Nest + Prisma](https://docs.nestjs.com/recipes/prisma) · [Prisma PostgreSQL](https://www.prisma.io/docs/orm/overview/databases/postgresql) · [Auth](https://docs.nestjs.com/security/authentication) · [imagen postgres](https://hub.docker.com/_/postgres)
+Las notificaciones no mandan mail: escriben en la consola de Nest (`warn` para `guardia`, `log` para el resto).
 
-## Arranque
+---
+
+## Cómo levantarlo
+
+### Requisitos
+
+Node.js 22+, npm, Docker Desktop.
+
+### Opción A — Todo en Docker (API + front)
 
 ```bash
 cp .env.example .env
-docker compose up -d
+docker compose up -d --build
+```
+
+| Servicio | URL |
+|----------|-----|
+| API | http://localhost:3001/api/v1 |
+| Health | http://localhost:3001/api/v1/health |
+| Swagger | http://localhost:3001/docs |
+| Front | http://localhost:3002 |
+
+El servicio `api` sincroniza el schema y corre el seed al arrancar. Reset de datos: `docker compose down -v` y otra vez `up --build`.
+
+### Opción B — API en el host + Postgres en Docker
+
+```bash
+cp .env.example .env
+docker compose up -d postgres
 npm install
 npx prisma db push
-npx run migration
 npm run seed
 npm run start:dev
 ```
 
-- API: http://localhost:3000/api/v1
-- Health: http://localhost:3000/api/v1/health
-- Swagger: http://localhost:3000/docs
+| Servicio | URL |
+|----------|-----|
+| API | http://localhost:3000/api/v1 |
+| Swagger | http://localhost:3000/docs |
 
-Cuentas del seed:
+Postgres del compose sale en el **5433** del host.
 
-- **admin** — `admin@turnos.local` / `Admin123!` (se crea aunque el resto del seed ya exista)
-- **secretaria** — `secretaria@turnos.local` / `Secretaria123!`
-- **enfermero** (Martín Torres) — `enfermero@turnos.local` / `Enfermero123!`
-- **Ana Pérez** — `ana.perez@turnos.local` / `Medico123!`
-- **Luis Gómez** — `luis.gomez@turnos.local` / `Medico123!`
-- **Carla Ruiz** — `carla.ruiz@turnos.local` / `Medico123!`
-- **Diego Fernández** — `diego.fernandez@turnos.local` / `Medico123!`
-- **Elena Soto** — `elena.soto@turnos.local` / `Medico123!`
+### Variables de entorno
 
-El seed deja datos demo de **todas** las entidades: 2 sedes, 4 especialidades, 24 pacientes, 5 médicos (+ agendas mañana/tarde), turnos de hoy±días (todos los estados), cargos por cobertura, lista de espera, triaje, bitácora, 3 alas / 6 camas, protocolos, 2 internaciones activas + 1 alta, signos vitales, prescripciones, dosis, insumos y cuentas. Si la secretaría ya existe, no vuelve a insertar; para regenerar todo: `npm run seed:reset` o `SEED_FORCE=1 node dist/seed.js`.
+Plantilla: [`.env.example`](.env.example).
 
-El front Vue de `../Front-Hospital/FrontHospitall` consume esta API a través del proxy de Vite (`/api` → `VITE_API_PROXY_TARGET`, por defecto `http://localhost:3000`); la API no habilita CORS.
+| Variable | Obligatoria | Default | Qué hace |
+|----------|-------------|---------|----------|
+| `DATABASE_URL` | sí | — | Connection string de Prisma |
+| `JWT_SECRET` | sí | — | Firma del JWT (mín. 16 caracteres) |
+| `JWT_EXPIRES_IN` | no | `8h` | Vida del token |
+| `CLINIC_TZ` | no | `UTC` en código | Zona para franjas y entreturno |
+| `PORT` | no | `3000` | Puerto HTTP |
 
-Los ids son UUID. Docker Desktop tiene que estar corriendo para `docker compose up -d`. El compose publica Postgres en el puerto **5433** del host para no pisar otro Postgres que use 5432.
+### Cuentas del seed
 
-## Siempre prendida en Docker
+| Rol | Email | Clave |
+|-----|-------|-------|
+| admin | `admin@turnos.local` | `Admin123!` |
+| secretaría | `secretaria@turnos.local` | `Secretaria123!` |
+| enfermero | `enfermero@turnos.local` | `Enfermero123!` |
+| médico | `ana.perez@turnos.local` (+ otros) | `Medico123!` |
 
-Nest usa Express (`@nestjs/platform-express`). El servicio `api` queda levantado con `restart: unless-stopped`: al iniciar sincroniza el schema y corre el seed.
+El seed (`seed/`, fuera de Nest) es idempotente si la secretaría ya existe. Regenerar: `npm run seed:reset`.
 
-```bash
-docker compose up -d --build
+### Auth en todas las llamadas
+
+```http
+POST /api/v1/auth/login
+Content-Type: application/json
+
+{ "email": "secretaria@turnos.local", "password": "Secretaria123!" }
 ```
 
-- API: http://localhost:3001/api/v1
-- Health: http://localhost:3001/api/v1/health
-- Swagger: http://localhost:3001/docs
+Respuesta: `{ "accessToken": "..." }`. Después:
 
-El host usa el puerto **3001** porque el 3000 suele estar ocupado. Dentro del contenedor la API escucha en el 3000. El compose también levanta el front Vue de `../Front-Hospital/FrontHospitall` en http://localhost:3002: nginx sirve el build y reenvía `/api` al servicio `api`.
+```http
+Authorization: Bearer <accessToken>
+```
 
-Para resetear la base y volver a sembrar: `docker compose down -v` y después `docker compose up -d --build` (el servicio `api` sincroniza el schema y corre el seed al arrancar).
+### Scripts
 
-## Flujo
+| Script | Qué hace |
+|--------|----------|
+| `npm run start:dev` | Nest en watch |
+| `npm run prisma:push` | Schema → Postgres |
+| `npm run seed` / `seed:reset` | Datos demo |
+| `npm test` | Unitarios |
+| `npm run test:e2e` | e2e contra `turnos_test` |
 
-1. Login secretaría `POST /api/v1/auth/login`
-2. Crear turno `POST /api/v1/appointments` (paciente + profesional + sucursal + horario)
-3. Listar / filtrar `GET /api/v1/appointments`
-4. Agenda `GET /api/v1/professionals/:id/agenda?from=&to=`
-5. Cancelar `POST /api/v1/appointments/:id/cancel` (queda en `GET /api/v1/binnacle/:id`)
-6. Triaje `POST /api/v1/triage` (`rojo`, `amarillo` o `verde`). La cola de la sucursal es `GET /api/v1/triage?branchId=`
-7. Internación `POST /api/v1/admissions` (cama libre + motivo opcional → protocolo; sin motivo o sin protocolo, `protocolTasks` vacío). Protocolos `GET`/`POST /api/v1/protocols` (crea profesional o admin). Alta `POST /api/v1/admissions/:id/discharge` (cama a limpieza) y `PATCH /api/v1/beds/:id/status` para liberarla
-8. Signos `POST /api/v1/admissions/:id/vitals` (enfermero). Indicación `POST /api/v1/patients/:id/prescriptions` (profesional) y toma `POST /api/v1/admissions/:id/doses` (enfermero, solo a ±30 minutos; descuenta stock y carga la cuenta). Las dos piden una internación sin alta; sus notas quedan en `GET /api/v1/binnacle/admissions/:id`
-9. Facturación `POST /api/v1/appointments/:id/charges` según la cobertura del paciente y cuenta de la estadía `GET /api/v1/admissions/:id/account`. El paciente acumula lo que debe en `appointmentBalance` (consultas) y `supplyBalance` (insumos)
+---
 
-Reglas: un profesional no puede tener dos turnos activos (`programado`/`en_sala_de_espera`) solapados en la misma sucursal. Si el horario ya está tomado, el mismo POST deja al paciente en la lista de espera. Si dos reservas entran juntas a un hueco libre, la segunda responde 409. El horario debe caer en su disponibilidad. El profesional no crea turnos ajenos. Un entreturno (`entreturno: true`) solo puede empezar a los :15 o :45. En la guardia, `rojo` va antes que `amarillo` y `verde`. Una cama solo se asigna si está `libre`; dos asignaciones simultáneas dejan una sola (la otra, 409).
+## Qué hace (roles)
 
-Horarios de disponibilidad se interpretan en `CLINIC_TZ`.
+| Rol | Puede |
+|-----|--------|
+| **Secretaría** | Turnos, pacientes, triaje, internación/alta, facturar consulta, ver cuentas |
+| **Enfermero** | Triaje, signos, dosis, liberar/bloquear camas |
+| **Profesional** | Su agenda, indicar medicación, protocolos, marcar `atendido` en turnos propios |
+| **Admin** | Catálogo (sedes, especialidades, médicos, camas, insumos, usuarios) + todo lo anterior |
 
-## Postman (presentación A–D)
+El paciente no usa la API.
 
-Importá en Postman:
+### Contratos útiles
 
-- [`postman/Turnos-API-Historias-A-D.postman_collection.json`](postman/Turnos-API-Historias-A-D.postman_collection.json) — carpetas por historia (A1–D2) + catálogo + setup
-- [`postman/Turnos-API-Local.postman_environment.json`](postman/Turnos-API-Local.postman_environment.json) — `baseUrl` Docker
+| Concepto | Valores |
+|----------|---------|
+| Estados de turno | `programado` → `en_sala_de_espera` → `atendido` (o `cancelado`) |
+| Triaje | `rojo` · `amarillo` · `verde` |
+| Cama | `disponible` · `ocupada` · `en_limpieza` · `bloqueada` |
+| Cobertura | `publica` · `prepaga` · `particular` |
+| Errores | `401` sin token · `403` rol · `400` body · `404` · `409` conflicto |
 
-Instrucciones cortas: [`postman/README.md`](postman/README.md). Regenerar: `node scripts/generate-postman-collection.cjs`.
+---
 
-## Scripts
+## Historias de usuario → endpoints (ejemplos)
 
-- `npm run start:dev` — Nest watch
-- `npm run prisma:push` — migra estados viejos y pasa signos y dosis de turno a internación el motivo de internación a texto y calcula los saldos de los pacientes si hace falta, y sincroniza el schema con Postgres. Si un signo o una dosis vieja no tiene internación posible, frena y pide borrarlos o resetear la base
-- `npm run seed` — datos demo (idempotente si ya existe la secretaría)
-- `npm test` — unitarios (entreturno, estados, triaje, fiebre, dosis, protocolos, camas, cobertura, zona horaria)
-- `npm run test:e2e` — turnos, lista de espera, entreturno, estados, bitácora, internación, stock y facturación (usa la base `turnos_test`)
+Las 13 historias A–D están cubiertas. Los `id` son UUID; tomalos del seed (`GET` de pacientes, profesionales, sucursales, camas, insumos).
 
-## Fuera de esta plantilla
+### A1 — Reserva de turno seguro
 
-UI, SMTP real, cobro de pagos, WhatsApp.
+Hueco libre → turno `programado`. Si dos reservas pelean el mismo hueco en la misma milésima, una puede responder `409`.
+
+```http
+POST /api/v1/appointments
+Authorization: Bearer <token secretaría>
+Content-Type: application/json
+
+{
+  "patientId": "<uuid>",
+  "professionalId": "<uuid>",
+  "branchId": "<uuid>",
+  "startAt": "2026-08-17T12:00:00.000Z",
+  "endAt": "2026-08-17T12:30:00.000Z",
+  "notes": "Control"
+}
+```
+
+`201` con `result: "programado"`.
+
+### A2 — Entreturno
+
+Mismo endpoint con `entreturno: true`. El inicio, en `CLINIC_TZ`, tiene que ser `:15` o `:45`; acorta el turno que contiene ese instante.
+
+```http
+POST /api/v1/appointments
+
+{
+  "patientId": "<uuid>",
+  "professionalId": "<uuid>",
+  "branchId": "<uuid>",
+  "startAt": "2026-08-17T12:15:00.000Z",
+  "endAt": "2026-08-17T12:30:00.000Z",
+  "entreturno": true
+}
+```
+
+### A3 — Lista de espera
+
+Si el horario ya está ocupado, el mismo `POST /appointments` responde `201` con `result: "lista_de_espera"` (no abre otro turno). Al cancelar, puede promover al primero:
+
+```http
+GET  /api/v1/appointments/waitlist
+POST /api/v1/appointments/:id/cancel
+```
+
+### A4 — Estados de atención
+
+```http
+PATCH /api/v1/appointments/:id
+{ "status": "en_sala_de_espera" }
+
+PATCH /api/v1/appointments/:id
+{ "status": "atendido" }
+
+GET /api/v1/professionals/:id/agenda?from=2026-08-17T00:00:00.000Z&to=2026-08-18T00:00:00.000Z
+GET /api/v1/binnacle/:appointmentId
+```
+
+### A5 — Triaje de guardia
+
+No crea turno. `rojo` deja un `WARN [guardia]` en el log.
+
+```http
+POST /api/v1/triage
+{
+  "patientId": "<uuid>",
+  "branchId": "<uuid>",
+  "level": "rojo"
+}
+
+GET /api/v1/triage?branchId=<uuid>
+```
+
+### B1 — Signos vitales (internación activa)
+
+Temperatura **> 39** → `fueraDeRango: true` + `WARN` a guardia con el número de cama.
+
+```http
+POST /api/v1/admissions/:admissionId/vitals
+{
+  "sistolica": 130,
+  "diastolica": 85,
+  "frecuenciaCardiaca": 98,
+  "temperatura": 39.4,
+  "notes": "Fiebre"
+}
+```
+
+### B2 — Medicación prescrita
+
+```http
+POST /api/v1/patients/:patientId/prescriptions
+{
+  "supplyId": "<uuid>",
+  "dosis": "1 comprimido",
+  "cadaHoras": 8
+}
+
+POST /api/v1/admissions/:admissionId/doses
+{
+  "indicacionId": "<uuid>",
+  "horaIndicada": "2026-08-17T15:00:00.000Z",
+  "administradaEn": "2026-08-17T15:05:00.000Z"
+}
+```
+
+La toma solo entra si `administradaEn` cae a ±30 minutos de `horaIndicada`. Dispara C3 y D2.
+
+### B3 — Protocolos + C1 — Asignar cama
+
+```http
+POST /api/v1/protocols
+{
+  "reason": "respiratorio",
+  "tasks": ["Control de signos cada 4 h", "Oxígeno según protocolo"]
+}
+
+POST /api/v1/admissions
+{
+  "patientId": "<uuid>",
+  "bedId": "<uuid cama disponible>",
+  "reason": "respiratorio",
+  "diagnosis": "Neumonía",
+  "treatingProfessionalId": "<uuid>"
+}
+```
+
+Cama `disponible` → `ocupada`. Segunda asignación simultánea → `409`. Sin motivo o sin protocolo, `protocolTasks` queda vacío.
+
+### C2 — Alta y limpieza
+
+```http
+POST /api/v1/admissions/:id/discharge
+
+PATCH /api/v1/beds/:id/status
+{ "status": "disponible" }
+```
+
+El alta deja la cama en `en_limpieza`. Después se libera o se bloquea (`bloqueada`).
+
+### C3 — Stock / D2 — Insumos en la cuenta
+
+Cada dosis exitosa descuenta 1 unidad del insumo (sin stock → `409`) y suma una línea a la cuenta de la estadía:
+
+```http
+GET /api/v1/admissions/:admissionId/account
+GET /api/v1/supplies
+```
+
+### D1 — Facturar consulta por cobertura
+
+```http
+POST /api/v1/appointments/:id/charges
+{ "price": 15000 }
+```
+
+Reparte el monto según la cobertura del paciente (`publica` / `prepaga` / `particular`).
+
+---
+
+## Índice rápido de endpoints
+
+Todas bajo `/api/v1`.
+
+| Método | URL | Historia |
+|--------|-----|----------|
+| GET | `/health` | — |
+| POST | `/auth/login` | — |
+| GET | `/users/me` | — |
+| CRUD | `/users` · `/branches` · `/specialties` · `/patients` · `/professionals` · `/availability` | catálogo |
+| POST/GET/PATCH | `/appointments` · `.../cancel` · `.../waitlist` | A1–A4 |
+| GET | `/professionals/:id/agenda` | A4 |
+| GET | `/binnacle/:appointmentId` · `/binnacle/admissions/:id` | A4, B1, B2 |
+| POST/GET | `/triage` | A5 |
+| GET/POST/PATCH | `/beds` · `.../status` | C1, C2 |
+| POST/GET | `/admissions` · `.../discharge` · `.../account` | B3, C1, C2, D2 |
+| POST | `/admissions/:id/vitals` · `.../doses` | B1, B2, C3, D2 |
+| GET/POST | `/patients/:id/prescriptions` | B2 |
+| GET/POST | `/protocols` | B3 |
+| GET/POST/PATCH | `/supplies` | C3 |
+| POST | `/appointments/:id/charges` | D1 |
+
+---
+
+## Más detalle
+
+| Documento | Contenido |
+|-----------|-----------|
+| [docs/Historias de usuario.md](docs/Historias%20de%20usuario.md) | Texto completo de las historias |
+| [docs/FLUJOS.md](docs/FLUJOS.md) | Qué función y archivo corre en cada paso |
+| [docs/PRODUCTO.md](docs/PRODUCTO.md) | Resumen de producto |
+| [docs/EMPEZAR.md](docs/EMPEZAR.md) | Setup ampliado |
+| [docs/API.md](docs/API.md) | Índice de API |
+| [docs/Turnos-API-Historias-A-D.postman_collection.json](docs/Turnos-API-Historias-A-D.postman_collection.json) | Colección Postman por historia |
+
+Índice de docs: [docs/README.md](docs/README.md).
+
+**Fuera de alcance:** SMTP real, cobro de pagos, WhatsApp.

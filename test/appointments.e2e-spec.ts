@@ -3,8 +3,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
-import { SeedService, SEED_ACCOUNTS } from '../src/seed/seed.service';
 import { setupApp } from '../src/setup-app';
+import { SEED_ACCOUNTS, resetSeed, runSeed } from '../seed/run';
 
 type LoginBody = { accessToken: string };
 type AppointmentBody = {
@@ -44,9 +44,8 @@ describe('Turnos (e2e)', () => {
     setupApp(app);
     await app.init();
 
-    const seed = app.get(SeedService);
-    await seed.reset();
-    const seeded = await seed.run();
+    await resetSeed();
+    const seeded = await runSeed(true);
     if (seeded.skipped) {
       throw new Error('El seed no debería saltarse en e2e');
     }

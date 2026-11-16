@@ -10,10 +10,10 @@
   },
   "scripts": {
     "build": "nest build",
-    "seed": "nest start --entryFile seed",
-    "seed:reset": "cross-env SEED_FORCE=1 nest start --entryFile seed",
+    "seed": "ts-node --transpile-only seed/index.ts",
+    "seed:reset": "cross-env SEED_FORCE=1 ts-node --transpile-only seed/index.ts",
     "prisma:generate": "prisma generate",
-    "prisma:push": "node scripts/prepare-appointment-status.cjs && prisma db push --accept-data-loss",
+    "prisma:push": "prisma db push --accept-data-loss",
     "postinstall": "prisma generate",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",

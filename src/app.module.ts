@@ -18,7 +18,6 @@ import { NursingModule } from './nursing/nursing.module';
 import { PatientsModule } from './patients/patients.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProfessionalsModule } from './professionals/professionals.module';
-import { SeedModule } from './seed/seed.module';
 import { SpecialtiesModule } from './specialties/specialties.module';
 import { SuppliesModule } from './supplies/supplies.module';
 import { TriageModule } from './triage/triage.module';
@@ -32,7 +31,6 @@ import { UsersModule } from './users/users.module';
     }),
     PrismaModule,
     HealthModule,
-    SeedModule,
     UsersModule,
     AuthModule,
     BranchesModule,

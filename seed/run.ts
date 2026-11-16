@@ -1,20 +1,19 @@
-import { Injectable } from '@nestjs/common';
 import {
   AvailabilityModality,
   BedStatus,
   BinnacleKind,
   Coverage,
   Prisma,
+  PrismaClient,
   ProfessionalStatus,
   TriageLevel,
 } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
-import { DEFAULT_PROTOCOLS } from '../admissions/protocols';
-import { patientShare, splitByCoverage } from '../billing/coverage';
-import { AppointmentStatus } from '../common/enums/appointment-status.enum';
-import { Role } from '../common/enums/role.enum';
-import { isFever } from '../nursing/nursing';
-import { PrismaService } from '../prisma/prisma.service';
+import { DEFAULT_PROTOCOLS } from '../src/admissions/protocols';
+import { patientShare, splitByCoverage } from '../src/billing/coverage';
+import { AppointmentStatus } from '../src/common/enums/appointment-status.enum';
+import { Role } from '../src/common/enums/role.enum';
+import { isFever } from '../src/nursing/nursing';
 
 export const SEED_ACCOUNTS = {
   admin: {
@@ -119,48 +118,50 @@ const BASE_PATIENTS: SeedPatient[] = [
   { firstName: 'Julia', lastName: 'Bustos', documentId: '40111024', coverage: Coverage.publica },
 ];
 
-@Injectable()
-export class SeedService {
-  constructor(private readonly prisma: PrismaService) {}
+const prisma = new PrismaClient();
 
-  async reset(): Promise<void> {
-    await this.prisma.$transaction([
-      this.prisma.accountLine.deleteMany(),
-      this.prisma.charge.deleteMany(),
-      this.prisma.doseAdministration.deleteMany(),
-      this.prisma.prescription.deleteMany(),
-      this.prisma.vitalSign.deleteMany(),
-      this.prisma.admission.deleteMany(),
-      this.prisma.protocol.deleteMany(),
-      this.prisma.bed.deleteMany(),
-      this.prisma.wing.deleteMany(),
-      this.prisma.supply.deleteMany(),
-      this.prisma.triageEntry.deleteMany(),
-      this.prisma.binnacleRecord.deleteMany(),
-      this.prisma.waitlistEntry.deleteMany(),
-      this.prisma.appointment.deleteMany(),
-      this.prisma.availability.deleteMany(),
-      this.prisma.professional.deleteMany(),
-      this.prisma.patient.deleteMany(),
-      this.prisma.specialty.deleteMany(),
-      this.prisma.branch.deleteMany(),
-      this.prisma.user.deleteMany(),
+export async function disconnectSeed(): Promise<void> {
+  await prisma.$disconnect();
+}
+
+export async function resetSeed(db: PrismaClient = prisma): Promise<void> {
+    await db.$transaction([
+      db.accountLine.deleteMany(),
+      db.charge.deleteMany(),
+      db.doseAdministration.deleteMany(),
+      db.prescription.deleteMany(),
+      db.vitalSign.deleteMany(),
+      db.admission.deleteMany(),
+      db.protocol.deleteMany(),
+      db.bed.deleteMany(),
+      db.wing.deleteMany(),
+      db.supply.deleteMany(),
+      db.triageEntry.deleteMany(),
+      db.binnacleRecord.deleteMany(),
+      db.waitlistEntry.deleteMany(),
+      db.appointment.deleteMany(),
+      db.availability.deleteMany(),
+      db.professional.deleteMany(),
+      db.patient.deleteMany(),
+      db.specialty.deleteMany(),
+      db.branch.deleteMany(),
+      db.user.deleteMany(),
     ]);
   }
 
-  async run(force = process.env.SEED_FORCE === '1'): Promise<SeedResult> {
+  export async function runSeed(force = process.env.SEED_FORCE === '1', db: PrismaClient = prisma): Promise<SeedResult> {
     if (force) {
-      await this.reset();
+      await resetSeed(db);
     }
 
-    await this.ensureAdmin();
-    await this.ensureProtocols();
+    await ensureAdmin(db);
+    await ensureProtocols(db);
 
-    const existing = await this.prisma.user.findUnique({
+    const existing = await db.user.findUnique({
       where: { email: SEED_ACCOUNTS.secretaria.email },
     });
     if (existing && !force) {
-      return { ...(await this.existingResult()), forced: false };
+      return { ...(await existingResult(db)), forced: false };
     }
 
     const [secretariaHash, enfermeroHash, medicoHash] = await Promise.all([
@@ -169,7 +170,7 @@ export class SeedService {
       bcrypt.hash(SEED_ACCOUNTS.medicos.ana.password, 10),
     ]);
 
-    return this.prisma.$transaction(
+    return db.$transaction(
       async (tx) => {
         const branch = await tx.branch.create({
           data: {
@@ -239,7 +240,7 @@ export class SeedService {
         const byDoc = (doc: string) =>
           patients.find((p) => p.documentId === doc)!;
 
-        const ana = await this.createDoctor(tx, {
+        const ana = await createDoctor(tx, {
           firstName: 'Ana',
           lastName: 'Pérez',
           email: SEED_ACCOUNTS.medicos.ana.email,
@@ -250,7 +251,7 @@ export class SeedService {
           phone: '1155551001',
           office: 'Consultorio 1',
         });
-        const luis = await this.createDoctor(tx, {
+        const luis = await createDoctor(tx, {
           firstName: 'Luis',
           lastName: 'Gómez',
           email: SEED_ACCOUNTS.medicos.luis.email,
@@ -261,7 +262,7 @@ export class SeedService {
           phone: '1155551002',
           office: 'Consultorio 2',
         });
-        const carla = await this.createDoctor(tx, {
+        const carla = await createDoctor(tx, {
           firstName: 'Carla',
           lastName: 'Ruiz',
           email: SEED_ACCOUNTS.medicos.carla.email,
@@ -272,7 +273,7 @@ export class SeedService {
           phone: '1155552001',
           office: 'Consultorio 3',
         });
-        const diego = await this.createDoctor(tx, {
+        const diego = await createDoctor(tx, {
           firstName: 'Diego',
           lastName: 'Fernández',
           email: SEED_ACCOUNTS.medicos.diego.email,
@@ -284,7 +285,7 @@ export class SeedService {
           office: 'Consultorio 4',
           status: ProfessionalStatus.activo,
         });
-        const elena = await this.createDoctor(tx, {
+        const elena = await createDoctor(tx, {
           firstName: 'Elena',
           lastName: 'Soto',
           email: SEED_ACCOUNTS.medicos.elena.email,
@@ -809,13 +810,13 @@ export class SeedService {
     );
   }
 
-  private async ensureAdmin(): Promise<void> {
+  async function ensureAdmin(db: PrismaClient): Promise<void> {
     const { email, password } = SEED_ACCOUNTS.admin;
-    const existing = await this.prisma.user.findUnique({ where: { email } });
+    const existing = await db.user.findUnique({ where: { email } });
     if (existing) {
       return;
     }
-    await this.prisma.user.create({
+    await db.user.create({
       data: {
         email,
         passwordHash: await bcrypt.hash(password, 10),
@@ -825,8 +826,8 @@ export class SeedService {
     });
   }
 
-  private async ensureProtocols(): Promise<void> {
-    await this.prisma.protocol.createMany({
+  async function ensureProtocols(db: PrismaClient): Promise<void> {
+    await db.protocol.createMany({
       data: Object.entries(DEFAULT_PROTOCOLS).map(([reason, tasks]) => ({
         reason,
         tasks,
@@ -835,7 +836,7 @@ export class SeedService {
     });
   }
 
-  private async createDoctor(
+  async function createDoctor(
     tx: Prisma.TransactionClient,
     input: {
       firstName: string;
@@ -878,11 +879,11 @@ export class SeedService {
     });
   }
 
-  private async existingResult(): Promise<Omit<SeedResult, 'forced'>> {
+  async function existingResult(db: PrismaClient): Promise<Omit<SeedResult, 'forced'>> {
     const [branch, patient, ana] = await Promise.all([
-      this.prisma.branch.findFirst({ orderBy: { createdAt: 'asc' } }),
-      this.prisma.patient.findFirst({ orderBy: { createdAt: 'asc' } }),
-      this.prisma.user.findUnique({
+      db.branch.findFirst({ orderBy: { createdAt: 'asc' } }),
+      db.patient.findFirst({ orderBy: { createdAt: 'asc' } }),
+      db.user.findUnique({
         where: { email: SEED_ACCOUNTS.medicos.ana.email },
       }),
     ]);
@@ -896,4 +897,3 @@ export class SeedService {
       professionalId: ana.professionalId,
     };
   }
-}

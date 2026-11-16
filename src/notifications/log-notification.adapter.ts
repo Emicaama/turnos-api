@@ -10,7 +10,12 @@ export class LogNotificationAdapter implements NotificationPort {
       event.type === 'guardia'
         ? `paciente=${event.patientId}`
         : `turno=${event.appointmentId}`;
-    this.logger.log(`[${event.type}] ${subject} ${event.message}`);
+    const line = `[${event.type}] ${subject} ${event.message}`;
+    if (event.type === 'guardia') {
+      this.logger.warn(line);
+    } else {
+      this.logger.log(line);
+    }
     return Promise.resolve();
   }
 }
